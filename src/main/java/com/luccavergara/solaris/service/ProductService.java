@@ -1,0 +1,118 @@
+package com.luccavergara.solaris.service;
+
+import com.luccavergara.solaris.dto.ProductRequest;
+import com.luccavergara.solaris.dto.ProductResponse;
+import com.luccavergara.solaris.entity.Product;
+import com.luccavergara.solaris.repository.ProductRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import com.luccavergara.solaris.exception.DuplicateResourceException;
+import com.luccavergara.solaris.exception.ResourceNotFoundException;
+import com.luccavergara.solaris.entity.Category;
+import com.luccavergara.solaris.repository.CategoryRepository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class ProductService {
+
+    private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
+
+
+    public ProductResponse createProduct(ProductRequest request) {
+        if (productRepository.existsBySku(request.getSku())) {
+            throw new DuplicateResourceException("Product SKU already exists");
+        }
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        Product product = Product.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .sku(request.getSku())
+                .price(request.getPrice())
+                .stockQuantity(request.getStockQuantity())
+                .createdAt(LocalDateTime.now())
+                .category(category)
+                .build();
+
+        Product savedProduct = productRepository.save(product);
+
+        return mapToResponse(savedProduct);
+    }
+
+    public List<ProductResponse> getAllProducts(String search) {
+        List<Product> products;
+
+        if (search == null || search.isBlank()) {
+            products = productRepository.findAll();
+        } else {
+            products = productRepository
+                    .findByNameContainingIgnoreCaseOrSkuContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                            search,
+                            search,
+                            search
+                    );
+        }
+
+        return products.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public ProductResponse getProductById(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        return mapToResponse(product);
+    }
+
+    public ProductResponse updateProduct(Long id, ProductRequest request) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        if (!product.getSku().equals(request.getSku()) && productRepository.existsBySku(request.getSku())) {
+            throw new DuplicateResourceException("Product SKU already exists");
+        }
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setSku(request.getSku());
+        product.setPrice(request.getPrice());
+        product.setStockQuantity(request.getStockQuantity());
+        product.setCategory(category);
+
+        Product updatedProduct = productRepository.save(product);
+
+        return mapToResponse(updatedProduct);
+    }
+
+    public void deleteProduct(Long id) {
+        if (!productRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Product not found");
+        }
+
+        productRepository.deleteById(id);
+    }
+
+    private ProductResponse mapToResponse(Product product) {
+        return ProductResponse.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .description(product.getDescription())
+                .sku(product.getSku())
+                .price(product.getPrice())
+                .stockQuantity(product.getStockQuantity())
+                .createdAt(product.getCreatedAt())
+                .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
+                .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
+                .build();
+    }
+
+
+}
