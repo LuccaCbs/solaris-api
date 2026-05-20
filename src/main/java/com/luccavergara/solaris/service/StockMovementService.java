@@ -25,7 +25,11 @@ public class StockMovementService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
+        int previousStock = product.getStockQuantity();
+
         applyStockMovement(product, request);
+
+        int currentStock = product.getStockQuantity();
 
         productRepository.save(product);
 
@@ -33,6 +37,8 @@ public class StockMovementService {
                 .product(product)
                 .type(request.getType())
                 .quantity(request.getQuantity())
+                .previousStock(previousStock)
+                .currentStock(currentStock)
                 .reason(request.getReason())
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -87,6 +93,8 @@ public class StockMovementService {
                 .productName(movement.getProduct().getName())
                 .type(movement.getType())
                 .quantity(movement.getQuantity())
+                .previousStock(movement.getPreviousStock())
+                .currentStock(movement.getCurrentStock())
                 .reason(movement.getReason())
                 .createdAt(movement.getCreatedAt())
                 .build();

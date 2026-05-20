@@ -1,6 +1,8 @@
 package com.luccavergara.solaris.dto;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -10,7 +12,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductRequest {
+public class ProductUpdateRequest {
 
     @NotBlank
     private String name;
@@ -25,11 +27,7 @@ public class ProductRequest {
     private BigDecimal price;
 
     @NotNull
-    @Min(0)
-    private Integer stockQuantity;
+    private Long categoryId;
 
     private Integer lowStockThreshold;
-
-    @NotNull
-    private Long categoryId;
 }

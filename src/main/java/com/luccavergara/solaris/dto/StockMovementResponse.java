@@ -17,6 +17,8 @@ public class StockMovementResponse {
     private String productName;
     private StockMovementType type;
     private Integer quantity;
+    private Integer previousStock;
+    private Integer currentStock;
     private String reason;
     private LocalDateTime createdAt;
 }

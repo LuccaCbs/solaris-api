@@ -54,4 +54,27 @@ public class CategoryService {
                 .createdAt(category.getCreatedAt())
                 .build();
     }
+
+    public CategoryResponse updateCategory(Long id, CategoryRequest request) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        if (!category.getName().equalsIgnoreCase(request.getName())
+                && categoryRepository.existsByNameIgnoreCase(request.getName())) {
+            throw new DuplicateResourceException("Category name already exists");
+        }
+
+        category.setName(request.getName());
+        category.setDescription(request.getDescription());
+
+        return mapToResponse(categoryRepository.save(category));
+    }
+
+    public void deleteCategory(Long id) {
+        if (!categoryRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Category not found");
+        }
+
+        categoryRepository.deleteById(id);
+    }
 }

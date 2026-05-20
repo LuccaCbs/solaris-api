@@ -21,4 +21,7 @@ public class ProductResponse {
     private LocalDateTime createdAt;
     private Long categoryId;
     private String categoryName;
+    private Integer lowStockThreshold;
+    private Integer effectiveLowStockThreshold;
+    private Boolean lowStock;
 }

@@ -29,9 +29,17 @@ public class StockMovement {
     @Column(nullable = false)
     private Integer quantity;
 
+    @Column(nullable = false)
+    private Integer previousStock;
+
+    @Column(nullable = false)
+    private Integer currentStock;
+
     @Column(length = 500)
     private String reason;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+
 }

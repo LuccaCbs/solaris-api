@@ -34,6 +34,9 @@ public class Product {
     @Column(nullable = false)
     private Integer stockQuantity;
 
+    @Column
+    private Integer lowStockThreshold;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 

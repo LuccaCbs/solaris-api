@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.luccavergara.solaris.dto.ProductUpdateRequest;
 
 import java.util.List;
 
@@ -41,7 +42,7 @@ public class ProductController {
     @PutMapping("/{id}")
     public ResponseEntity<ProductResponse> updateProduct(
             @PathVariable Long id,
-            @Valid @RequestBody ProductRequest request
+            @Valid @RequestBody ProductUpdateRequest request
     ) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
     }

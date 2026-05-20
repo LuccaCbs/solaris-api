@@ -10,6 +10,7 @@ import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.repository.CategoryRepository;
+import com.luccavergara.solaris.dto.ProductUpdateRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,7 +21,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
-
+    private final SystemSettingsService systemSettingsService;
 
     public ProductResponse createProduct(ProductRequest request) {
         if (productRepository.existsBySku(request.getSku())) {
@@ -35,6 +36,7 @@ public class ProductService {
                 .sku(request.getSku())
                 .price(request.getPrice())
                 .stockQuantity(request.getStockQuantity())
+                .lowStockThreshold(request.getLowStockThreshold())
                 .createdAt(LocalDateTime.now())
                 .category(category)
                 .build();
@@ -70,7 +72,7 @@ public class ProductService {
         return mapToResponse(product);
     }
 
-    public ProductResponse updateProduct(Long id, ProductRequest request) {
+    public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
@@ -84,8 +86,8 @@ public class ProductService {
         product.setDescription(request.getDescription());
         product.setSku(request.getSku());
         product.setPrice(request.getPrice());
-        product.setStockQuantity(request.getStockQuantity());
         product.setCategory(category);
+        product.setLowStockThreshold(request.getLowStockThreshold());
 
         Product updatedProduct = productRepository.save(product);
 
@@ -101,6 +103,16 @@ public class ProductService {
     }
 
     private ProductResponse mapToResponse(Product product) {
+        Integer globalLowStockThreshold = systemSettingsService
+                .getOrCreateSettings()
+                .getGlobalLowStockThreshold();
+
+        Integer effectiveLowStockThreshold = product.getLowStockThreshold() != null
+                ? product.getLowStockThreshold()
+                : globalLowStockThreshold;
+
+        boolean lowStock = product.getStockQuantity() <= effectiveLowStockThreshold;
+
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -108,6 +120,9 @@ public class ProductService {
                 .sku(product.getSku())
                 .price(product.getPrice())
                 .stockQuantity(product.getStockQuantity())
+                .lowStockThreshold(product.getLowStockThreshold())
+                .effectiveLowStockThreshold(effectiveLowStockThreshold)
+                .lowStock(lowStock)
                 .createdAt(product.getCreatedAt())
                 .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
                 .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
