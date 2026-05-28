@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.luccavergara.solaris.dto.ValidateAdminPasswordRequest;
+import com.luccavergara.solaris.dto.ValidateAdminPasswordResponse;
 
 @RestController
 @RequestMapping("/api/v1/admin/settings")
@@ -25,5 +27,12 @@ public class SystemSettingsController {
             @Valid @RequestBody SystemSettingsRequest request
     ) {
         return ResponseEntity.ok(systemSettingsService.updateSettings(request));
+    }
+
+    @PostMapping("/validate-password")
+    public ValidateAdminPasswordResponse validateAdminPassword(
+            @Valid @RequestBody ValidateAdminPasswordRequest request
+    ) {
+        return systemSettingsService.validateAdminPassword(request);
     }
 }
