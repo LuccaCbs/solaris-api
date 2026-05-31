@@ -7,19 +7,21 @@ import com.luccavergara.solaris.entity.CashRegisterSession;
 import com.luccavergara.solaris.entity.CashRegisterStatus;
 import com.luccavergara.solaris.entity.PaymentMethod;
 import com.luccavergara.solaris.entity.Sale;
+import com.luccavergara.solaris.entity.SystemSettings;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CashRegisterReopenLogRepository;
 import com.luccavergara.solaris.repository.CashRegisterSessionRepository;
 import com.luccavergara.solaris.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -27,6 +29,7 @@ import java.util.List;
 public class CashRegisterService {
 
     private static final String TEMP_USER = "SYSTEM_USER";
+    private static final String SYSTEM_AUTO_CLOSE = "SYSTEM_AUTO_CLOSE";
 
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
     private final SaleRepository saleRepository;
@@ -37,6 +40,8 @@ public class CashRegisterService {
     public CashRegisterSessionResponse openCashRegister(
             CashRegisterAuthorizationRequest request
     ) {
+        autoCloseStaleOpenCashRegisterIfNeeded();
+
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
         cashRegisterSessionRepository
@@ -45,7 +50,7 @@ public class CashRegisterService {
                     throw new IllegalStateException("There is already an open cash register session");
                 });
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = getTodayByBusinessTimezone();
 
         cashRegisterSessionRepository
                 .findFirstByOpenedAtBetweenOrderByOpenedAtDesc(
@@ -80,9 +85,26 @@ public class CashRegisterService {
     }
 
     public CashRegisterSessionResponse getCurrentSession() {
+        autoCloseStaleOpenCashRegisterIfNeeded();
+
         CashRegisterSession session = cashRegisterSessionRepository
                 .findFirstByStatusOrderByOpenedAtDesc(CashRegisterStatus.OPEN)
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
+
+        return mapToResponse(session);
+    }
+
+    public CashRegisterSessionResponse getTodaySession() {
+        autoCloseStaleOpenCashRegisterIfNeeded();
+
+        LocalDate today = getTodayByBusinessTimezone();
+
+        CashRegisterSession session = cashRegisterSessionRepository
+                .findFirstByOpenedAtBetweenOrderByOpenedAtDesc(
+                        today.atStartOfDay(),
+                        today.atTime(LocalTime.MAX)
+                )
+                .orElseThrow(() -> new IllegalStateException("There is no cash register session for today"));
 
         return mapToResponse(session);
     }
@@ -91,25 +113,15 @@ public class CashRegisterService {
     public CashRegisterSessionResponse closeCashRegister(
             CashRegisterAuthorizationRequest request
     ) {
+        autoCloseStaleOpenCashRegisterIfNeeded();
+
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
         CashRegisterSession session = cashRegisterSessionRepository
                 .findFirstByStatusOrderByOpenedAtDesc(CashRegisterStatus.OPEN)
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
 
-        List<Sale> sessionSales = saleRepository.findAll()
-                .stream()
-                .filter(sale ->
-                        sale.getCashRegisterSession() != null
-                                && sale.getCashRegisterSession().getId().equals(session.getId())
-                )
-                .toList();
-
-        applySalesTotals(session, sessionSales);
-
-        session.setClosedAt(LocalDateTime.now());
-        session.setClosedBy(TEMP_USER);
-        session.setStatus(CashRegisterStatus.CLOSED);
+        closeSession(session, TEMP_USER);
 
         return mapToResponse(cashRegisterSessionRepository.save(session));
     }
@@ -119,6 +131,8 @@ public class CashRegisterService {
             Long id,
             CashRegisterAuthorizationRequest request
     ) {
+        autoCloseStaleOpenCashRegisterIfNeeded();
+
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
         cashRegisterSessionRepository
@@ -148,6 +162,56 @@ public class CashRegisterService {
         cashRegisterReopenLogRepository.save(log);
 
         return mapToResponse(cashRegisterSessionRepository.save(session));
+    }
+
+    @Scheduled(cron = "0 * * * * *")
+    @Transactional
+    public void autoCloseOpenCashRegistersAtConfiguredTime() {
+        SystemSettings settings = systemSettingsService.getOrCreateSettings();
+
+        ZoneId zoneId = ZoneId.of(settings.getBusinessTimezone());
+        LocalTime now = LocalTime.now(zoneId).withSecond(0).withNano(0);
+
+        if (!now.equals(settings.getCashRegisterAutoCloseTime())) {
+            return;
+        }
+
+        autoCloseStaleOpenCashRegisterIfNeeded();
+    }
+
+    @Transactional
+    protected void autoCloseStaleOpenCashRegisterIfNeeded() {
+        LocalDate today = getTodayByBusinessTimezone();
+
+        cashRegisterSessionRepository
+                .findFirstByStatusOrderByOpenedAtDesc(CashRegisterStatus.OPEN)
+                .ifPresent(session -> {
+                    if (!session.getOpenedAt().toLocalDate().isBefore(today)) {
+                        return;
+                    }
+
+                    closeSession(session, SYSTEM_AUTO_CLOSE);
+                    cashRegisterSessionRepository.save(session);
+                });
+    }
+
+    private void closeSession(
+            CashRegisterSession session,
+            String closedBy
+    ) {
+        List<Sale> sessionSales = saleRepository.findAll()
+                .stream()
+                .filter(sale ->
+                        sale.getCashRegisterSession() != null
+                                && sale.getCashRegisterSession().getId().equals(session.getId())
+                )
+                .toList();
+
+        applySalesTotals(session, sessionSales);
+
+        session.setClosedAt(LocalDateTime.now());
+        session.setClosedBy(closedBy);
+        session.setStatus(CashRegisterStatus.CLOSED);
     }
 
     private void applySalesTotals(
@@ -195,42 +259,11 @@ public class CashRegisterService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    public CashRegisterSessionResponse getTodaySession() {
-        LocalDate today = LocalDate.now();
+    private LocalDate getTodayByBusinessTimezone() {
+        SystemSettings settings = systemSettingsService.getOrCreateSettings();
+        ZoneId zoneId = ZoneId.of(settings.getBusinessTimezone());
 
-        CashRegisterSession session = cashRegisterSessionRepository
-                .findFirstByOpenedAtBetweenOrderByOpenedAtDesc(
-                        today.atStartOfDay(),
-                        today.atTime(LocalTime.MAX)
-                )
-                .orElseThrow(() -> new IllegalStateException("There is no cash register session for today"));
-
-        return mapToResponse(session);
-    }
-
-    @Scheduled(cron = "0 * * * * *", zone = "America/Argentina/Buenos_Aires")
-    //@Scheduled(cron = "0 0 0 * * *", zone = "America/Argentina/Buenos_Aires")
-    @Transactional
-    public void autoCloseOpenCashRegistersAtMidnight() {
-        cashRegisterSessionRepository
-                .findFirstByStatusOrderByOpenedAtDesc(CashRegisterStatus.OPEN)
-                .ifPresent(session -> {
-                    List<Sale> sessionSales = saleRepository.findAll()
-                            .stream()
-                            .filter(sale ->
-                                    sale.getCashRegisterSession() != null
-                                            && sale.getCashRegisterSession().getId().equals(session.getId())
-                            )
-                            .toList();
-
-                    applySalesTotals(session, sessionSales);
-
-                    session.setClosedAt(LocalDateTime.now());
-                    session.setClosedBy("SYSTEM_AUTO_CLOSE");
-                    session.setStatus(CashRegisterStatus.CLOSED);
-
-                    cashRegisterSessionRepository.save(session);
-                });
+        return LocalDate.now(zoneId);
     }
 
     private CashRegisterSessionResponse mapToResponse(CashRegisterSession session) {
