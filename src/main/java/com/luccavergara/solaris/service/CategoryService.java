@@ -3,6 +3,7 @@ package com.luccavergara.solaris.service;
 import com.luccavergara.solaris.dto.CategoryRequest;
 import com.luccavergara.solaris.dto.CategoryResponse;
 import com.luccavergara.solaris.entity.Category;
+import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CategoryRepository;
@@ -17,9 +18,12 @@ import java.util.List;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public CategoryResponse createCategory(CategoryRequest request) {
-        if (categoryRepository.existsByNameIgnoreCase(request.getName())) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        if (categoryRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
             throw new DuplicateResourceException("Category name already exists");
         }
 
@@ -27,40 +31,38 @@ public class CategoryService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .createdAt(LocalDateTime.now())
+                .user(currentUser)
                 .build();
 
         return mapToResponse(categoryRepository.save(category));
     }
 
     public List<CategoryResponse> getAllCategories() {
-        return categoryRepository.findAll()
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        return categoryRepository.findAllByUser(currentUser)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public CategoryResponse getCategoryById(Long id) {
-        Category category = categoryRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Category category = categoryRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         return mapToResponse(category);
     }
 
-    private CategoryResponse mapToResponse(Category category) {
-        return CategoryResponse.builder()
-                .id(category.getId())
-                .name(category.getName())
-                .description(category.getDescription())
-                .createdAt(category.getCreatedAt())
-                .build();
-    }
-
     public CategoryResponse updateCategory(Long id, CategoryRequest request) {
-        Category category = categoryRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Category category = categoryRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         if (!category.getName().equalsIgnoreCase(request.getName())
-                && categoryRepository.existsByNameIgnoreCase(request.getName())) {
+                && categoryRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
             throw new DuplicateResourceException("Category name already exists");
         }
 
@@ -71,10 +73,20 @@ public class CategoryService {
     }
 
     public void deleteCategory(Long id) {
-        if (!categoryRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Category not found");
-        }
+        User currentUser = authenticatedUserService.getCurrentUser();
 
-        categoryRepository.deleteById(id);
+        Category category = categoryRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        categoryRepository.delete(category);
+    }
+
+    private CategoryResponse mapToResponse(Category category) {
+        return CategoryResponse.builder()
+                .id(category.getId())
+                .name(category.getName())
+                .description(category.getDescription())
+                .createdAt(category.getCreatedAt())
+                .build();
     }
 }

@@ -23,6 +23,10 @@ public class SupplierOrder {
     @JoinColumn(name = "supplier_id", nullable = false)
     private Supplier supplier;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @OneToMany(
             mappedBy = "supplierOrder",
             cascade = CascadeType.ALL,
@@ -42,4 +46,5 @@ public class SupplierOrder {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
 }

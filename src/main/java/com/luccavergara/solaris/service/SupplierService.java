@@ -3,6 +3,7 @@ package com.luccavergara.solaris.service;
 import com.luccavergara.solaris.dto.SupplierRequest;
 import com.luccavergara.solaris.dto.SupplierResponse;
 import com.luccavergara.solaris.entity.Supplier;
+import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.SupplierRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +17,10 @@ import java.util.List;
 public class SupplierService {
 
     private final SupplierRepository supplierRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public SupplierResponse createSupplier(SupplierRequest request) {
+        User currentUser = authenticatedUserService.getCurrentUser();
         LocalDateTime now = LocalDateTime.now();
 
         Supplier supplier = Supplier.builder()
@@ -30,27 +33,34 @@ public class SupplierService {
                 .active(request.getActive() != null ? request.getActive() : true)
                 .createdAt(now)
                 .updatedAt(now)
+                .user(currentUser)
                 .build();
 
         return mapToResponse(supplierRepository.save(supplier));
     }
 
     public List<SupplierResponse> getAllSuppliers() {
-        return supplierRepository.findAll()
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        return supplierRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public SupplierResponse getSupplierById(Long id) {
-        Supplier supplier = supplierRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         return mapToResponse(supplier);
     }
 
     public SupplierResponse updateSupplier(Long id, SupplierRequest request) {
-        Supplier supplier = supplierRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         supplier.setName(request.getName());
@@ -70,11 +80,12 @@ public class SupplierService {
     }
 
     public void deleteSupplier(Long id) {
-        if (!supplierRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Supplier not found");
-        }
+        User currentUser = authenticatedUserService.getCurrentUser();
 
-        supplierRepository.deleteById(id);
+        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        supplierRepository.delete(supplier);
     }
 
     private SupplierResponse mapToResponse(Supplier supplier) {

@@ -68,4 +68,8 @@ public class CashRegisterSession {
     @Column(nullable = false)
     private BigDecimal otherAmount;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
 }

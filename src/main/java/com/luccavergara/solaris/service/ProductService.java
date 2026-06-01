@@ -2,15 +2,16 @@ package com.luccavergara.solaris.service;
 
 import com.luccavergara.solaris.dto.ProductRequest;
 import com.luccavergara.solaris.dto.ProductResponse;
+import com.luccavergara.solaris.dto.ProductUpdateRequest;
+import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.entity.Product;
+import com.luccavergara.solaris.entity.User;
+import com.luccavergara.solaris.exception.DuplicateResourceException;
+import com.luccavergara.solaris.exception.ResourceNotFoundException;
+import com.luccavergara.solaris.repository.CategoryRepository;
 import com.luccavergara.solaris.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.luccavergara.solaris.exception.DuplicateResourceException;
-import com.luccavergara.solaris.exception.ResourceNotFoundException;
-import com.luccavergara.solaris.entity.Category;
-import com.luccavergara.solaris.repository.CategoryRepository;
-import com.luccavergara.solaris.dto.ProductUpdateRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,12 +23,16 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final SystemSettingsService systemSettingsService;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public ProductResponse createProduct(ProductRequest request) {
-        if (productRepository.existsBySku(request.getSku())) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        if (productRepository.existsBySkuAndUser(request.getSku(), currentUser)) {
             throw new DuplicateResourceException("Product SKU already exists");
         }
-        Category category = categoryRepository.findById(request.getCategoryId())
+
+        Category category = categoryRepository.findByIdAndUser(request.getCategoryId(), currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         Product product = Product.builder()
@@ -39,6 +44,7 @@ public class ProductService {
                 .lowStockThreshold(request.getLowStockThreshold())
                 .createdAt(LocalDateTime.now())
                 .category(category)
+                .user(currentUser)
                 .build();
 
         Product savedProduct = productRepository.save(product);
@@ -47,15 +53,20 @@ public class ProductService {
     }
 
     public List<ProductResponse> getAllProducts(String search) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
         List<Product> products;
 
         if (search == null || search.isBlank()) {
-            products = productRepository.findAll();
+            products = productRepository.findAllByUser(currentUser);
         } else {
             products = productRepository
-                    .findByNameContainingIgnoreCaseOrSkuContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                    .findByUserAndNameContainingIgnoreCaseOrUserAndSkuContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
+                            currentUser,
                             search,
+                            currentUser,
                             search,
+                            currentUser,
                             search
                     );
         }
@@ -66,20 +77,26 @@ public class ProductService {
     }
 
     public ProductResponse getProductById(Long id) {
-        Product product = productRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Product product = productRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         return mapToResponse(product);
     }
 
     public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
-        Product product = productRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Product product = productRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        if (!product.getSku().equals(request.getSku()) && productRepository.existsBySku(request.getSku())) {
+        if (!product.getSku().equals(request.getSku())
+                && productRepository.existsBySkuAndUser(request.getSku(), currentUser)) {
             throw new DuplicateResourceException("Product SKU already exists");
         }
-        Category category = categoryRepository.findById(request.getCategoryId())
+
+        Category category = categoryRepository.findByIdAndUser(request.getCategoryId(), currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         product.setName(request.getName());
@@ -95,11 +112,12 @@ public class ProductService {
     }
 
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Product not found");
-        }
+        User currentUser = authenticatedUserService.getCurrentUser();
 
-        productRepository.deleteById(id);
+        Product product = productRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        productRepository.delete(product);
     }
 
     private ProductResponse mapToResponse(Product product) {
@@ -128,6 +146,4 @@ public class ProductService {
                 .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
                 .build();
     }
-
-
 }

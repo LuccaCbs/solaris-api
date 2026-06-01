@@ -1,6 +1,5 @@
 package com.luccavergara.solaris.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 @Getter
@@ -10,6 +9,5 @@ import lombok.*;
 @Builder
 public class CashRegisterAuthorizationRequest {
 
-    @NotBlank
     private String adminPassword;
 }

@@ -3,9 +3,11 @@ package com.luccavergara.solaris.service;
 import com.luccavergara.solaris.dto.DashboardMonthlySalesResponse;
 import com.luccavergara.solaris.dto.DashboardResponse;
 import com.luccavergara.solaris.dto.DashboardSupplierOrdersResponse;
+import com.luccavergara.solaris.entity.Product;
 import com.luccavergara.solaris.entity.Sale;
 import com.luccavergara.solaris.entity.SupplierOrder;
 import com.luccavergara.solaris.entity.SupplierOrderStatus;
+import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.ProductRepository;
 import com.luccavergara.solaris.repository.SaleRepository;
 import com.luccavergara.solaris.repository.SupplierOrderRepository;
@@ -25,10 +27,13 @@ public class DashboardService {
     private final ProductRepository productRepository;
     private final SupplierOrderRepository supplierOrderRepository;
     private final SystemSettingsService systemSettingsService;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public DashboardResponse getDashboard() {
-        List<Sale> sales = saleRepository.findAll();
-        List<SupplierOrder> supplierOrders = supplierOrderRepository.findAll();
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        List<Sale> sales = saleRepository.findAllByUserOrderByCreatedAtDesc(currentUser);
+        List<SupplierOrder> supplierOrders = supplierOrderRepository.findAllByUser(currentUser);
 
         LocalDate today = LocalDate.now();
 
@@ -43,28 +48,30 @@ public class DashboardService {
         return DashboardResponse.builder()
                 .todaySalesCount(todaySales.size())
                 .todaySalesAmount(todaySalesAmount)
-                .lowStockProductsCount(countLowStockProducts())
+                .lowStockProductsCount(countLowStockProducts(currentUser))
                 .supplierOrders(buildSupplierOrdersResponse(supplierOrders))
                 .monthlySales(buildMonthlySales(sales))
                 .build();
     }
 
-    private Integer countLowStockProducts() {
+    private Integer countLowStockProducts(User currentUser) {
         Integer globalLowStockThreshold = systemSettingsService
                 .getOrCreateSettings()
                 .getGlobalLowStockThreshold();
 
-        return (int) productRepository.findAll()
+        return (int) productRepository.findAllByUser(currentUser)
                 .stream()
-                .filter(product -> {
-                    Integer effectiveThreshold = product.getLowStockThreshold() != null
-                            ? product.getLowStockThreshold()
-                            : globalLowStockThreshold;
-
-                    return product.getStockQuantity() != null
-                            && product.getStockQuantity() <= effectiveThreshold;
-                })
+                .filter(product -> isLowStock(product, globalLowStockThreshold))
                 .count();
+    }
+
+    private boolean isLowStock(Product product, Integer globalLowStockThreshold) {
+        Integer effectiveThreshold = product.getLowStockThreshold() != null
+                ? product.getLowStockThreshold()
+                : globalLowStockThreshold;
+
+        return product.getStockQuantity() != null
+                && product.getStockQuantity() <= effectiveThreshold;
     }
 
     private DashboardSupplierOrdersResponse buildSupplierOrdersResponse(

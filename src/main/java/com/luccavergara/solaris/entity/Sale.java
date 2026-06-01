@@ -31,6 +31,10 @@ public class Sale {
     private LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cash_register_session_id", nullable = false)
     private CashRegisterSession cashRegisterSession;
 

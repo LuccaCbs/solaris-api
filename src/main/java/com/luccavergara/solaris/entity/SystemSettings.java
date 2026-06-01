@@ -37,4 +37,8 @@ public class SystemSettings {
     @Column(nullable = false)
     private Boolean whatsappEnabled;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
 }

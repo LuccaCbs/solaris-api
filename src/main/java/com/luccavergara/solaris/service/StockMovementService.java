@@ -5,6 +5,7 @@ import com.luccavergara.solaris.dto.StockMovementResponse;
 import com.luccavergara.solaris.entity.Product;
 import com.luccavergara.solaris.entity.StockMovement;
 import com.luccavergara.solaris.entity.StockMovementType;
+import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.ProductRepository;
 import com.luccavergara.solaris.repository.StockMovementRepository;
@@ -20,9 +21,12 @@ public class StockMovementService {
 
     private final StockMovementRepository stockMovementRepository;
     private final ProductRepository productRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public StockMovementResponse createMovement(StockMovementRequest request) {
-        Product product = productRepository.findById(request.getProductId())
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Product product = productRepository.findByIdAndUser(request.getProductId(), currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         int previousStock = product.getStockQuantity();
@@ -35,6 +39,7 @@ public class StockMovementService {
 
         StockMovement movement = StockMovement.builder()
                 .product(product)
+                .user(currentUser)
                 .type(request.getType())
                 .quantity(request.getQuantity())
                 .previousStock(previousStock)
@@ -47,18 +52,21 @@ public class StockMovementService {
     }
 
     public List<StockMovementResponse> getAllMovements() {
-        return stockMovementRepository.findAll()
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        return stockMovementRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public List<StockMovementResponse> getMovementsByProduct(Long productId) {
-        if (!productRepository.existsById(productId)) {
-            throw new ResourceNotFoundException("Product not found");
-        }
+        User currentUser = authenticatedUserService.getCurrentUser();
 
-        return stockMovementRepository.findByProductIdOrderByCreatedAtDesc(productId)
+        productRepository.findByIdAndUser(productId, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        return stockMovementRepository.findByProductIdAndUserOrderByCreatedAtDesc(productId, currentUser)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

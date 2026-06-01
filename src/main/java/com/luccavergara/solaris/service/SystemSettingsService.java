@@ -2,16 +2,19 @@ package com.luccavergara.solaris.service;
 
 import com.luccavergara.solaris.dto.SystemSettingsRequest;
 import com.luccavergara.solaris.dto.SystemSettingsResponse;
-import com.luccavergara.solaris.entity.SystemSettings;
-import com.luccavergara.solaris.repository.SystemSettingsRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import com.luccavergara.solaris.dto.ValidateAdminPasswordRequest;
 import com.luccavergara.solaris.dto.ValidateAdminPasswordResponse;
+import com.luccavergara.solaris.entity.SystemSettings;
+import com.luccavergara.solaris.entity.User;
+import com.luccavergara.solaris.repository.SystemSettingsRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class SystemSettingsService {
 
     private final SystemSettingsRepository systemSettingsRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public SystemSettingsResponse getSettings() {
         return mapToResponse(getOrCreateSettings());
@@ -40,6 +44,7 @@ public class SystemSettingsService {
         }
 
         if (request.getBusinessTimezone() != null && !request.getBusinessTimezone().isBlank()) {
+            ZoneId.of(request.getBusinessTimezone());
             settings.setBusinessTimezone(request.getBusinessTimezone());
         }
 
@@ -55,9 +60,9 @@ public class SystemSettingsService {
     }
 
     public SystemSettings getOrCreateSettings() {
-        return systemSettingsRepository.findAll()
-                .stream()
-                .findFirst()
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        return systemSettingsRepository.findByUser(currentUser)
                 .orElseGet(() -> systemSettingsRepository.save(
                         SystemSettings.builder()
                                 .globalLowStockThreshold(DEFAULT_LOW_STOCK_THRESHOLD)
@@ -65,8 +70,16 @@ public class SystemSettingsService {
                                 .cashRegisterAutoCloseTime(LocalTime.MIDNIGHT)
                                 .updatedAt(LocalDateTime.now())
                                 .whatsappEnabled(false)
+                                .user(currentUser)
                                 .build()
                 ));
+    }
+
+    public boolean hasAdminAccessPasswordConfigured() {
+        SystemSettings settings = getOrCreateSettings();
+
+        return settings.getAdminAccessPasswordHash() != null
+                && !settings.getAdminAccessPasswordHash().isBlank();
     }
 
     private SystemSettingsResponse mapToResponse(SystemSettings settings) {
@@ -89,9 +102,10 @@ public class SystemSettingsService {
     ) {
         SystemSettings settings = getOrCreateSettings();
 
-        boolean valid = settings.getAdminAccessPasswordHash() != null
-                && !settings.getAdminAccessPasswordHash().isBlank()
-                && passwordEncoder.matches(
+        boolean hasPassword = settings.getAdminAccessPasswordHash() != null
+                && !settings.getAdminAccessPasswordHash().isBlank();
+
+        boolean valid = !hasPassword || passwordEncoder.matches(
                 request.getPassword(),
                 settings.getAdminAccessPasswordHash()
         );
@@ -100,18 +114,26 @@ public class SystemSettingsService {
                 .valid(valid)
                 .build();
     }
+
     public void validateAdminPasswordOrThrow(String password) {
         SystemSettings settings = getOrCreateSettings();
 
-        boolean valid = settings.getAdminAccessPasswordHash() != null
-                && !settings.getAdminAccessPasswordHash().isBlank()
-                && passwordEncoder.matches(
-                password,
-                settings.getAdminAccessPasswordHash()
-        );
+        boolean hasPassword = settings.getAdminAccessPasswordHash() != null
+                && !settings.getAdminAccessPasswordHash().isBlank();
+
+        if (!hasPassword) {
+            return;
+        }
+
+        boolean valid = password != null
+                && passwordEncoder.matches(password, settings.getAdminAccessPasswordHash());
 
         if (!valid) {
             throw new IllegalArgumentException("Invalid admin password");
         }
+    }
+
+    public List<SystemSettings> getAllSettings() {
+        return systemSettingsRepository.findAll();
     }
 }

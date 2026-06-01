@@ -1,6 +1,5 @@
 package com.luccavergara.solaris.dto;
 
-import com.luccavergara.solaris.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -24,6 +23,4 @@ public class RegisterRequest {
 
     @NotBlank
     private String password;
-
-    private Role role;
 }

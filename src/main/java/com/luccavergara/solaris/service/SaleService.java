@@ -12,6 +12,7 @@ import com.luccavergara.solaris.entity.Sale;
 import com.luccavergara.solaris.entity.SaleItem;
 import com.luccavergara.solaris.entity.StockMovement;
 import com.luccavergara.solaris.entity.StockMovementType;
+import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CashRegisterSessionRepository;
 import com.luccavergara.solaris.repository.ProductRepository;
@@ -25,9 +26,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -37,15 +37,19 @@ public class SaleService {
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     @Transactional
     public SaleResponse createSale(SaleRequest request) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
         CashRegisterSession cashRegisterSession = cashRegisterSessionRepository
-                .findFirstByStatusOrderByOpenedAtDesc(CashRegisterStatus.OPEN)
+                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
 
         Sale sale = Sale.builder()
                 .cashRegisterSession(cashRegisterSession)
+                .user(currentUser)
                 .paymentMethod(request.getPaymentMethod())
                 .totalAmount(BigDecimal.ZERO)
                 .createdAt(LocalDateTime.now())
@@ -55,7 +59,7 @@ public class SaleService {
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         for (var itemRequest : request.getItems()) {
-            Product product = productRepository.findById(itemRequest.getProductId())
+            Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
             int previousStock = product.getStockQuantity();
@@ -85,6 +89,7 @@ public class SaleService {
 
             StockMovement movement = StockMovement.builder()
                     .product(product)
+                    .user(currentUser)
                     .type(StockMovementType.OUT)
                     .quantity(quantity)
                     .previousStock(previousStock)
@@ -104,27 +109,33 @@ public class SaleService {
     }
 
     public List<SaleResponse> getAllSales() {
-        return saleRepository.findAll()
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        return saleRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
                 .stream()
-                .sorted(Comparator.comparing(Sale::getCreatedAt).reversed())
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public SaleResponse getSaleById(Long id) {
-        Sale sale = saleRepository.findById(id)
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Sale sale = saleRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found"));
 
         return mapToResponse(sale);
     }
 
     public DailySalesSummaryResponse getDailySummary(LocalDate date) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
         LocalDate targetDate = date != null ? date : LocalDate.now();
 
         LocalDateTime startOfDay = targetDate.atStartOfDay();
         LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
 
-        List<Sale> sales = saleRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(
+        List<Sale> sales = saleRepository.findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(
+                currentUser,
                 startOfDay,
                 endOfDay
         );
