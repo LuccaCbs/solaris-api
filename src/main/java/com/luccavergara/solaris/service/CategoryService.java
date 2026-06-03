@@ -17,6 +17,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryService {
 
+    private static final String DEFAULT_CATEGORY_NAME = "General";
+
     private final CategoryRepository categoryRepository;
     private final AuthenticatedUserService authenticatedUserService;
 
@@ -31,6 +33,7 @@ public class CategoryService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .createdAt(LocalDateTime.now())
+                .systemCategory(false)
                 .user(currentUser)
                 .build();
 
@@ -39,6 +42,8 @@ public class CategoryService {
 
     public List<CategoryResponse> getAllCategories() {
         User currentUser = authenticatedUserService.getCurrentUser();
+
+        ensureDefaultCategoryExists(currentUser);
 
         return categoryRepository.findAllByUser(currentUser)
                 .stream()
@@ -61,6 +66,10 @@ public class CategoryService {
         Category category = categoryRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
+        if (Boolean.TRUE.equals(category.getSystemCategory())) {
+            throw new IllegalStateException("System category cannot be modified");
+        }
+
         if (!category.getName().equalsIgnoreCase(request.getName())
                 && categoryRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
             throw new DuplicateResourceException("Category name already exists");
@@ -78,7 +87,28 @@ public class CategoryService {
         Category category = categoryRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
+        if (Boolean.TRUE.equals(category.getSystemCategory())) {
+            throw new IllegalStateException("System category cannot be deleted");
+        }
+
         categoryRepository.delete(category);
+    }
+
+    public Category getOrCreateDefaultCategory(User user) {
+        return categoryRepository.findByNameIgnoreCaseAndUser(DEFAULT_CATEGORY_NAME, user)
+                .orElseGet(() -> categoryRepository.save(
+                        Category.builder()
+                                .name(DEFAULT_CATEGORY_NAME)
+                                .description("Default category")
+                                .createdAt(LocalDateTime.now())
+                                .systemCategory(true)
+                                .user(user)
+                                .build()
+                ));
+    }
+
+    private void ensureDefaultCategoryExists(User user) {
+        getOrCreateDefaultCategory(user);
     }
 
     private CategoryResponse mapToResponse(Category category) {
@@ -86,6 +116,7 @@ public class CategoryService {
                 .id(category.getId())
                 .name(category.getName())
                 .description(category.getDescription())
+                .systemCategory(category.getSystemCategory())
                 .createdAt(category.getCreatedAt())
                 .build();
     }

@@ -19,14 +19,12 @@ public class ProductUpdateRequest {
 
     private String description;
 
-    @NotBlank
     private String sku;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = false)
     private BigDecimal price;
 
-    @NotNull
     private Long categoryId;
 
     private Integer lowStockThreshold;

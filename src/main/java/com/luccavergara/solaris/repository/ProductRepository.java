@@ -25,4 +25,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             User user3,
             String description
     );
+    List<Product> findByUserAndSkuStartingWith(User user, String skuPrefix);
+
+    boolean existsByNameIgnoreCaseAndUser(String name, User user);
+    boolean existsByNameIgnoreCaseAndUserAndIdNot(
+            String name,
+            User user,
+            Long id
+    );
+
+    Optional<Product> findByNameIgnoreCaseAndUser(String name, User user);
 }

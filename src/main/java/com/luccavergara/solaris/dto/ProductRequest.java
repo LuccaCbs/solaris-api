@@ -17,7 +17,6 @@ public class ProductRequest {
 
     private String description;
 
-    @NotBlank
     private String sku;
 
     @NotNull
@@ -30,6 +29,5 @@ public class ProductRequest {
 
     private Integer lowStockThreshold;
 
-    @NotNull
     private Long categoryId;
 }

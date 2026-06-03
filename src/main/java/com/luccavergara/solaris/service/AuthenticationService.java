@@ -7,6 +7,10 @@ import com.luccavergara.solaris.entity.Role;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.UserRepository;
 import com.luccavergara.solaris.security.JwtService;
+import com.luccavergara.solaris.entity.Category;
+import com.luccavergara.solaris.repository.CategoryRepository;
+import java.time.LocalDateTime;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,7 +25,7 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-
+    private final CategoryRepository categoryRepository;
     public AuthenticationResponse register(RegisterRequest request) {
         var user = User.builder()
                 .firstname(request.getFirstname())
@@ -31,9 +35,19 @@ public class AuthenticationService {
                 .role(Role.USER)
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-        var jwtToken = jwtService.generateToken(user);
+        categoryRepository.save(
+                Category.builder()
+                        .name("General")
+                        .description("Default category")
+                        .createdAt(LocalDateTime.now())
+                        .systemCategory(true)
+                        .user(savedUser)
+                        .build()
+        );
+
+        var jwtToken = jwtService.generateToken(savedUser);
 
         return AuthenticationResponse.builder()
                 .token(jwtToken)

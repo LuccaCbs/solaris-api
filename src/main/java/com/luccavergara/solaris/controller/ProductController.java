@@ -8,6 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.luccavergara.solaris.dto.ProductUpdateRequest;
+import com.luccavergara.solaris.dto.ProductImportResponse;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import com.luccavergara.solaris.dto.ProductImportMode;
 
 import java.util.List;
 
@@ -23,6 +28,27 @@ public class ProductController {
             @Valid @RequestBody ProductRequest request
     ) {
         return ResponseEntity.ok(productService.createProduct(request));
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<ProductImportResponse> importProducts(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(defaultValue = "CREATE_ONLY") ProductImportMode mode
+    ) {
+        return ResponseEntity.ok(productService.importProducts(file, mode));
+    }
+
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadImportTemplate() {
+        byte[] file = productService.generateImportTemplate();
+
+        return ResponseEntity.ok()
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=products-import-template.xlsx"
+                )
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(file);
     }
 
     @GetMapping
