@@ -9,6 +9,8 @@ import com.luccavergara.solaris.repository.UserRepository;
 import com.luccavergara.solaris.security.JwtService;
 import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.repository.CategoryRepository;
+import com.luccavergara.solaris.dto.RegisterResponse;
+import com.luccavergara.solaris.exception.DuplicateResourceException;
 import java.time.LocalDateTime;
 
 import lombok.RequiredArgsConstructor;
@@ -26,16 +28,26 @@ public class AuthenticationService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final CategoryRepository categoryRepository;
-    public AuthenticationResponse register(RegisterRequest request) {
+    private final EmailVerificationService emailVerificationService;
+
+    public RegisterResponse register(RegisterRequest request) {
+
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new DuplicateResourceException("Email already registered");
+        }
+
         var user = User.builder()
                 .firstname(request.getFirstname())
                 .lastname(request.getLastname())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.USER)
+                .emailVerified(false)
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        emailVerificationService.createAndLogVerificationToken(savedUser);
 
         categoryRepository.save(
                 Category.builder()
@@ -47,10 +59,8 @@ public class AuthenticationService {
                         .build()
         );
 
-        var jwtToken = jwtService.generateToken(savedUser);
-
-        return AuthenticationResponse.builder()
-                .token(jwtToken)
+        return RegisterResponse.builder()
+                .message("Account created successfully. Please verify your email.")
                 .build();
     }
 

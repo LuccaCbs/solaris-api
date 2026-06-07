@@ -52,7 +52,8 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "https://solaris-web-gamma.vercel.app"
+                "https://solarismanager.com",
+                "https://www.solarismanager.com"
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
