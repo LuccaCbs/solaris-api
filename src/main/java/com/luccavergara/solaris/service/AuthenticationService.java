@@ -12,6 +12,8 @@ import com.luccavergara.solaris.repository.CategoryRepository;
 import com.luccavergara.solaris.dto.RegisterResponse;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import java.time.LocalDateTime;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,6 +31,7 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final CategoryRepository categoryRepository;
     private final EmailVerificationService emailVerificationService;
+    private final AuditLogService auditLogService;
 
     public RegisterResponse register(RegisterRequest request) {
 
@@ -46,6 +49,14 @@ public class AuthenticationService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        auditLogService.log(
+                AuditAction.REGISTER_USER,
+                AuditEntityType.USER,
+                savedUser.getId(),
+                savedUser.getFirstname() + " " + savedUser.getLastname(),
+                "User registered"
+        );
 
         emailVerificationService.createAndLogVerificationToken(savedUser);
 
@@ -74,6 +85,14 @@ public class AuthenticationService {
 
         var user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow();
+
+        auditLogService.log(
+                AuditAction.LOGIN,
+                AuditEntityType.USER,
+                user.getId(),
+                user.getFirstname() + " " + user.getLastname(),
+                "User logged in"
+        );
 
         var jwtToken = jwtService.generateToken(user);
 

@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,6 +38,7 @@ public class CashRegisterService {
     private final CashRegisterReopenLogRepository cashRegisterReopenLogRepository;
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public CashRegisterSessionResponse openCashRegister(
@@ -86,7 +89,17 @@ public class CashRegisterService {
                 .user(currentUser)
                 .build();
 
-        return mapToResponse(cashRegisterSessionRepository.save(session));
+        CashRegisterSession savedSession = cashRegisterSessionRepository.save(session);
+
+        auditLogService.log(
+                AuditAction.OPEN_CASH_REGISTER,
+                AuditEntityType.CASH_REGISTER,
+                savedSession.getId(),
+                "Cash Register #" + savedSession.getId(),
+                "Cash register opened"
+        );
+
+        return mapToResponse(savedSession);
     }
 
     public CashRegisterSessionResponse getCurrentSession() {
@@ -135,7 +148,17 @@ public class CashRegisterService {
 
         closeSession(session, currentUser.getEmail());
 
-        return mapToResponse(cashRegisterSessionRepository.save(session));
+        CashRegisterSession savedSession = cashRegisterSessionRepository.save(session);
+
+        auditLogService.log(
+                AuditAction.CLOSE_CASH_REGISTER,
+                AuditEntityType.CASH_REGISTER,
+                savedSession.getId(),
+                "Cash Register #" + savedSession.getId(),
+                "Cash register closed with total $" + savedSession.getClosingAmount()
+        );
+
+        return mapToResponse(savedSession);
     }
 
     @Transactional
@@ -175,7 +198,17 @@ public class CashRegisterService {
 
         cashRegisterReopenLogRepository.save(log);
 
-        return mapToResponse(cashRegisterSessionRepository.save(session));
+        CashRegisterSession savedSession = cashRegisterSessionRepository.save(session);
+
+        auditLogService.log(
+                AuditAction.REOPEN_CASH_REGISTER,
+                AuditEntityType.CASH_REGISTER,
+                savedSession.getId(),
+                "Cash Register #" + savedSession.getId(),
+                "Cash register reopened"
+        );
+
+        return mapToResponse(savedSession);
     }
     @Scheduled(cron = "0 * * * * *")
     @Transactional

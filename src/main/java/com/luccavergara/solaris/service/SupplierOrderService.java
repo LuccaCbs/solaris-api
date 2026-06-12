@@ -16,6 +16,8 @@ import com.luccavergara.solaris.repository.SupplierRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +30,7 @@ public class SupplierOrderService {
     private final SupplierRepository supplierRepository;
     private final ProductRepository productRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public SupplierOrderResponse createSupplierOrder(SupplierOrderRequest request) {
@@ -63,7 +66,17 @@ public class SupplierOrderService {
         supplierOrder.setItems(items);
         supplierOrder.setMessagePreview(buildMessagePreview(supplier, items));
 
-        return mapToResponse(supplierOrderRepository.save(supplierOrder));
+        SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
+
+        auditLogService.log(
+                AuditAction.CREATE_SUPPLIER_ORDER,
+                AuditEntityType.SUPPLIER_ORDER,
+                savedOrder.getId(),
+                "Supplier Order #" + savedOrder.getId(),
+                "Supplier order created for supplier: " + savedOrder.getSupplier().getName()
+        );
+
+        return mapToResponse(savedOrder);
     }
 
     public List<SupplierOrderResponse> getAllSupplierOrders() {
@@ -94,7 +107,17 @@ public class SupplierOrderService {
         supplierOrder.setStatus(SupplierOrderStatus.SENT);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
 
-        return mapToResponse(supplierOrderRepository.save(supplierOrder));
+        SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.SUPPLIER_ORDER,
+                savedOrder.getId(),
+                "Supplier Order #" + savedOrder.getId(),
+                "Supplier order marked as sent"
+        );
+
+        return mapToResponse(savedOrder);
     }
 
     @Transactional
@@ -107,7 +130,17 @@ public class SupplierOrderService {
         supplierOrder.setStatus(SupplierOrderStatus.COMPLETED);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
 
-        return mapToResponse(supplierOrderRepository.save(supplierOrder));
+        SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
+
+        auditLogService.log(
+                AuditAction.COMPLETE_SUPPLIER_ORDER,
+                AuditEntityType.SUPPLIER_ORDER,
+                savedOrder.getId(),
+                "Supplier Order #" + savedOrder.getId(),
+                "Supplier order completed"
+        );
+
+        return mapToResponse(savedOrder);
     }
 
     @Transactional
@@ -120,7 +153,17 @@ public class SupplierOrderService {
         supplierOrder.setStatus(SupplierOrderStatus.CANCELLED);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
 
-        return mapToResponse(supplierOrderRepository.save(supplierOrder));
+        SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
+
+        auditLogService.log(
+                AuditAction.CANCEL_SUPPLIER_ORDER,
+                AuditEntityType.SUPPLIER_ORDER,
+                savedOrder.getId(),
+                "Supplier Order #" + savedOrder.getId(),
+                "Supplier order cancelled"
+        );
+
+        return mapToResponse(savedOrder);
     }
 
     public void deleteSupplierOrder(Long id) {
@@ -128,6 +171,14 @@ public class SupplierOrderService {
 
         SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
+
+        auditLogService.log(
+                AuditAction.DELETE,
+                AuditEntityType.SUPPLIER_ORDER,
+                supplierOrder.getId(),
+                "Supplier Order #" + supplierOrder.getId(),
+                "Supplier order deleted"
+        );
 
         supplierOrderRepository.delete(supplierOrder);
     }

@@ -13,6 +13,9 @@ import com.luccavergara.solaris.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.luccavergara.solaris.dto.ProductImportMode;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
+
 
 import com.luccavergara.solaris.dto.ProductImportResponse;
 import org.apache.poi.ss.usermodel.*;
@@ -34,6 +37,7 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     public byte[] generateImportTemplate() {
         try (Workbook workbook = WorkbookFactory.create(true);
@@ -257,6 +261,14 @@ public class ProductService {
 
         productRepository.save(existingProduct);
 
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.PRODUCT,
+                existingProduct.getId(),
+                existingProduct.getName(),
+                "Product updated by import: " + existingProduct.getName()
+        );
+
         return true;
     }
 
@@ -300,6 +312,14 @@ public class ProductService {
                 .build();
 
         Product savedProduct = productRepository.save(product);
+
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.PRODUCT,
+                savedProduct.getId(),
+                savedProduct.getName(),
+                "Product created"
+        );
 
         return mapToResponse(savedProduct);
     }
@@ -427,6 +447,14 @@ public class ProductService {
 
         Product updatedProduct = productRepository.save(product);
 
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.PRODUCT,
+                updatedProduct.getId(),
+                updatedProduct.getName(),
+                "Product updated: " + updatedProduct.getName()
+        );
+
         return mapToResponse(updatedProduct);
     }
 
@@ -437,6 +465,14 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         productRepository.delete(product);
+
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.PRODUCT,
+                product.getId(),
+                product.getName(),
+                "Product deleted: " + product.getName()
+        );
     }
 
     private ProductResponse mapToResponse(Product product) {

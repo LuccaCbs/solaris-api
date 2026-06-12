@@ -9,6 +9,8 @@ import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +23,7 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     public CategoryResponse createCategory(CategoryRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -37,7 +40,17 @@ public class CategoryService {
                 .user(currentUser)
                 .build();
 
-        return mapToResponse(categoryRepository.save(category));
+        Category savedCategory = categoryRepository.save(category);
+
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.CATEGORY,
+                savedCategory.getId(),
+                savedCategory.getName(),
+                "Category created"
+        );
+
+        return mapToResponse(savedCategory);
     }
 
     public List<CategoryResponse> getAllCategories() {
@@ -78,7 +91,17 @@ public class CategoryService {
         category.setName(request.getName());
         category.setDescription(request.getDescription());
 
-        return mapToResponse(categoryRepository.save(category));
+        Category updatedCategory = categoryRepository.save(category);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.CATEGORY,
+                updatedCategory.getId(),
+                updatedCategory.getName(),
+                "Category updated"
+        );
+
+        return mapToResponse(updatedCategory);
     }
 
     public void deleteCategory(Long id) {
@@ -90,6 +113,14 @@ public class CategoryService {
         if (Boolean.TRUE.equals(category.getSystemCategory())) {
             throw new IllegalStateException("System category cannot be deleted");
         }
+
+        auditLogService.log(
+                AuditAction.DELETE,
+                AuditEntityType.CATEGORY,
+                category.getId(),
+                category.getName(),
+                "Category deleted"
+        );
 
         categoryRepository.delete(category);
     }

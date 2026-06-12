@@ -10,6 +10,8 @@ import com.luccavergara.solaris.repository.SystemSettingsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -25,6 +27,7 @@ public class SystemSettingsService {
     private final SystemSettingsRepository systemSettingsRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     public SystemSettingsResponse getSettings() {
         return mapToResponse(getOrCreateSettings());
@@ -56,7 +59,17 @@ public class SystemSettingsService {
             settings.setWhatsappEnabled(request.getWhatsappEnabled());
         }
 
-        return mapToResponse(systemSettingsRepository.save(settings));
+        SystemSettings savedSettings = systemSettingsRepository.save(settings);
+
+        auditLogService.log(
+                AuditAction.UPDATE_SETTINGS,
+                AuditEntityType.SYSTEM_SETTINGS,
+                savedSettings.getId(),
+                "System Settings",
+                "System settings updated"
+        );
+
+        return mapToResponse(savedSettings);
     }
 
     public SystemSettings getOrCreateSettings() {

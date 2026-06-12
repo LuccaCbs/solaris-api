@@ -21,6 +21,8 @@ import com.luccavergara.solaris.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,6 +40,7 @@ public class SaleService {
     private final StockMovementRepository stockMovementRepository;
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public SaleResponse createSale(SaleRequest request) {
@@ -105,7 +108,17 @@ public class SaleService {
 
         sale.setTotalAmount(totalAmount);
 
-        return mapToResponse(saleRepository.save(sale));
+        Sale savedSale = saleRepository.save(sale);
+
+        auditLogService.log(
+                AuditAction.CREATE_SALE,
+                AuditEntityType.SALE,
+                savedSale.getId(),
+                "Sale #" + savedSale.getId(),
+                "Sale created with total $" + savedSale.getTotalAmount()
+        );
+
+        return mapToResponse(savedSale);
     }
 
     public List<SaleResponse> getAllSales() {

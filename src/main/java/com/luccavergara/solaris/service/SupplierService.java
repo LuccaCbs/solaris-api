@@ -8,6 +8,8 @@ import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.SupplierRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +20,7 @@ public class SupplierService {
 
     private final SupplierRepository supplierRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final AuditLogService auditLogService;
 
     public SupplierResponse createSupplier(SupplierRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -36,7 +39,17 @@ public class SupplierService {
                 .user(currentUser)
                 .build();
 
-        return mapToResponse(supplierRepository.save(supplier));
+        Supplier savedSupplier = supplierRepository.save(supplier);
+
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.SUPPLIER,
+                savedSupplier.getId(),
+                savedSupplier.getName(),
+                "Supplier created"
+        );
+
+        return mapToResponse(savedSupplier);
     }
 
     public List<SupplierResponse> getAllSuppliers() {
@@ -76,7 +89,17 @@ public class SupplierService {
 
         supplier.setUpdatedAt(LocalDateTime.now());
 
-        return mapToResponse(supplierRepository.save(supplier));
+        Supplier updatedSupplier = supplierRepository.save(supplier);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.SUPPLIER,
+                updatedSupplier.getId(),
+                updatedSupplier.getName(),
+                "Supplier updated"
+        );
+
+        return mapToResponse(updatedSupplier);
     }
 
     public void deleteSupplier(Long id) {
@@ -84,6 +107,14 @@ public class SupplierService {
 
         Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        auditLogService.log(
+                AuditAction.DELETE,
+                AuditEntityType.SUPPLIER,
+                supplier.getId(),
+                supplier.getName(),
+                "Supplier deleted"
+        );
 
         supplierRepository.delete(supplier);
     }

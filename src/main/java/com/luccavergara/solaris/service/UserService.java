@@ -9,6 +9,8 @@ import com.luccavergara.solaris.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.luccavergara.solaris.entity.AuditAction;
+import com.luccavergara.solaris.entity.AuditEntityType;
 
 @Service
 @RequiredArgsConstructor
@@ -17,6 +19,7 @@ public class UserService {
     private final AuthenticatedUserService authenticatedUserService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     public UserProfileResponse getCurrentUserProfile() {
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -32,6 +35,14 @@ public class UserService {
 
         User savedUser = userRepository.save(currentUser);
 
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.USER,
+                savedUser.getId(),
+                savedUser.getFirstname() + " " + savedUser.getLastname(),
+                "User profile updated"
+        );
+
         return mapToResponse(savedUser);
     }
 
@@ -43,7 +54,15 @@ public class UserService {
         }
 
         currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(currentUser);
+        User savedUser = userRepository.save(currentUser);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.USER,
+                savedUser.getId(),
+                savedUser.getFirstname() + " " + savedUser.getLastname(),
+                "User password changed"
+        );
 
         return MessageResponse.builder()
                 .message("Password updated successfully.")
