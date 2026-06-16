@@ -210,7 +210,7 @@ public class CashRegisterService {
 
         return mapToResponse(savedSession);
     }
-    @Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void autoCloseOpenCashRegistersAtConfiguredTime() {
         List<SystemSettings> allSettings = systemSettingsService.getAllSettings();
