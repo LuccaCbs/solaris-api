@@ -23,15 +23,26 @@ public class SaleItem {
     private Sale sale;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", nullable = true)
     private Product product;
 
     @Column(nullable = false)
     private Integer quantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SaleItemType type;
+
+    @Column(length = 180)
+    private String customName;
+
+    @Column(length = 30)
+    private String unitLabel;
 
     @Column(nullable = false)
     private BigDecimal unitPrice;
 
     @Column(nullable = false)
     private BigDecimal subtotal;
+
 }

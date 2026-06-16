@@ -18,7 +18,7 @@ public class SaleRequest {
     @NotNull
     private PaymentMethod paymentMethod;
 
-    @Valid
     @NotEmpty
+    @Valid
     private List<SaleItemRequest> items;
 }

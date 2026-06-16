@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
+import com.luccavergara.solaris.entity.SaleItemType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -62,48 +63,92 @@ public class SaleService {
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         for (var itemRequest : request.getItems()) {
-            Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
-
-            int previousStock = product.getStockQuantity();
             int quantity = itemRequest.getQuantity();
 
-            if (previousStock < quantity) {
-                throw new IllegalArgumentException("Insufficient stock for product: " + product.getName());
+            if (itemRequest.getType() == SaleItemType.PRODUCT) {
+                Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+                int previousStock = product.getStockQuantity();
+
+                if (previousStock < quantity) {
+                    throw new IllegalArgumentException("Insufficient stock for product: " + product.getName());
+                }
+
+                int currentStock = previousStock - quantity;
+
+                product.setStockQuantity(currentStock);
+                productRepository.save(product);
+
+                BigDecimal unitPrice = product.getPrice();
+                BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
+                SaleItem saleItem = SaleItem.builder()
+                        .sale(sale)
+                        .product(product)
+                        .type(SaleItemType.PRODUCT)
+                        .customName(null)
+                        .unitLabel(null)
+                        .quantity(quantity)
+                        .unitPrice(unitPrice)
+                        .subtotal(subtotal)
+                        .build();
+
+                sale.getItems().add(saleItem);
+
+                StockMovement movement = StockMovement.builder()
+                        .product(product)
+                        .user(currentUser)
+                        .type(StockMovementType.OUT)
+                        .quantity(quantity)
+                        .previousStock(previousStock)
+                        .currentStock(currentStock)
+                        .reason("Sale transaction")
+                        .createdAt(LocalDateTime.now())
+                        .build();
+
+                stockMovementRepository.save(movement);
+
+                totalAmount = totalAmount.add(subtotal);
+
+                continue;
             }
 
-            int currentStock = previousStock - quantity;
+            if (itemRequest.getType() == SaleItemType.CUSTOM) {
+                if (itemRequest.getCustomName() == null || itemRequest.getCustomName().isBlank()) {
+                    throw new IllegalArgumentException("Custom item name is required");
+                }
 
-            product.setStockQuantity(currentStock);
-            productRepository.save(product);
+                if (itemRequest.getUnitPrice() == null) {
+                    throw new IllegalArgumentException("Custom item unit price is required");
+                }
 
-            BigDecimal unitPrice = product.getPrice();
-            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+                BigDecimal unitPrice = itemRequest.getUnitPrice();
+                BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
 
-            SaleItem saleItem = SaleItem.builder()
-                    .sale(sale)
-                    .product(product)
-                    .quantity(quantity)
-                    .unitPrice(unitPrice)
-                    .subtotal(subtotal)
-                    .build();
+                SaleItem saleItem = SaleItem.builder()
+                        .sale(sale)
+                        .product(null)
+                        .type(SaleItemType.CUSTOM)
+                        .customName(itemRequest.getCustomName().trim())
+                        .unitLabel(
+                                itemRequest.getUnitLabel() != null && !itemRequest.getUnitLabel().isBlank()
+                                        ? itemRequest.getUnitLabel().trim()
+                                        : "unit"
+                        )
+                        .quantity(quantity)
+                        .unitPrice(unitPrice)
+                        .subtotal(subtotal)
+                        .build();
 
-            sale.getItems().add(saleItem);
+                sale.getItems().add(saleItem);
 
-            StockMovement movement = StockMovement.builder()
-                    .product(product)
-                    .user(currentUser)
-                    .type(StockMovementType.OUT)
-                    .quantity(quantity)
-                    .previousStock(previousStock)
-                    .currentStock(currentStock)
-                    .reason("Sale transaction")
-                    .createdAt(LocalDateTime.now())
-                    .build();
+                totalAmount = totalAmount.add(subtotal);
 
-            stockMovementRepository.save(movement);
+                continue;
+            }
 
-            totalAmount = totalAmount.add(subtotal);
+            throw new IllegalArgumentException("Unsupported sale item type");
         }
 
         sale.setTotalAmount(totalAmount);
@@ -208,8 +253,19 @@ public class SaleService {
     private SaleItemResponse mapItemToResponse(SaleItem item) {
         return SaleItemResponse.builder()
                 .id(item.getId())
-                .productId(item.getProduct().getId())
-                .productName(item.getProduct().getName())
+                .type(item.getType())
+                .productId(
+                        item.getProduct() != null
+                                ? item.getProduct().getId()
+                                : null
+                )
+                .productName(
+                        item.getProduct() != null
+                                ? item.getProduct().getName()
+                                : null
+                )
+                .customName(item.getCustomName())
+                .unitLabel(item.getUnitLabel())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(item.getSubtotal())
