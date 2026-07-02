@@ -34,6 +34,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/select-organization").authenticated()
                         .requestMatchers(
                                 "/api/v1/auth/**",
+                                "/api/v1/organizations/invites/accept",
+                                "/api/v1/organizations/invites/preview",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"

@@ -61,4 +61,9 @@ public class Product {
 
     @Column(nullable = false)
     private Boolean active = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "iva_rate", nullable = false)
+    @Builder.Default
+    private ProductIvaRate ivaRate = ProductIvaRate.GENERAL_21;
 }

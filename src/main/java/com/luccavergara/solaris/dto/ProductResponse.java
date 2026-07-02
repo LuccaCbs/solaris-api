@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.dto;
 
+import com.luccavergara.solaris.entity.ProductIvaRate;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -25,4 +26,5 @@ public class ProductResponse {
     private Integer effectiveLowStockThreshold;
     private Boolean lowStock;
     private Boolean active;
+    private ProductIvaRate ivaRate;
 }

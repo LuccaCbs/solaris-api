@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.dto;
 
+import com.luccavergara.solaris.entity.ProductIvaRate;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -30,4 +31,6 @@ public class ProductRequest {
     private Integer lowStockThreshold;
 
     private Long categoryId;
+
+    private ProductIvaRate ivaRate;
 }

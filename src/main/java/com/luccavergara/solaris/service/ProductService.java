@@ -5,6 +5,7 @@ import com.luccavergara.solaris.dto.ProductResponse;
 import com.luccavergara.solaris.dto.ProductUpdateRequest;
 import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.entity.Product;
+import com.luccavergara.solaris.entity.ProductIvaRate;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
@@ -265,6 +266,7 @@ public class ProductService {
         existingProduct.setStockQuantity(request.getStockQuantity());
         existingProduct.setCategory(category);
         existingProduct.setLowStockThreshold(request.getLowStockThreshold());
+        existingProduct.setIvaRate(resolveIvaRate(request.getIvaRate()));
 
         productRepository.save(existingProduct);
 
@@ -317,6 +319,7 @@ public class ProductService {
                 .category(category)
                 .user(currentUser)
                 .active(true)
+                .ivaRate(resolveIvaRate(request.getIvaRate()))
                 .build();
 
         tenantScopeService.getOrganizationReference(currentUser)
@@ -450,6 +453,7 @@ public class ProductService {
         product.setPrice(request.getPrice());
         product.setCategory(category);
         product.setLowStockThreshold(request.getLowStockThreshold());
+        product.setIvaRate(resolveIvaRate(request.getIvaRate()));
 
         Product updatedProduct = productRepository.save(product);
 
@@ -531,6 +535,11 @@ public class ProductService {
                 .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
                 .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
                 .active(product.getActive())
+                .ivaRate(product.getIvaRate())
                 .build();
+    }
+
+    private ProductIvaRate resolveIvaRate(ProductIvaRate ivaRate) {
+        return ivaRate != null ? ivaRate : ProductIvaRate.GENERAL_21;
     }
 }

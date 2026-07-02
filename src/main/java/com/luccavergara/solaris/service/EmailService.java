@@ -43,6 +43,38 @@ public class EmailService {
         }
     }
 
+    public void sendOrganizationInvite(
+            String to,
+            String organizationName,
+            String role,
+            String inviteLink
+    ) {
+        if (resendApiKey == null || resendApiKey.isBlank()) {
+            System.out.println("==================================================");
+            System.out.println("RESEND_API_KEY not configured.");
+            System.out.println("SOLARIS ORGANIZATION INVITE LINK:");
+            System.out.println(inviteLink);
+            System.out.println("==================================================");
+            return;
+        }
+
+        Resend resend = new Resend(resendApiKey);
+
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from("Solaris <" + emailFrom + ">")
+                .to(to)
+                .subject("You have been invited to join " + organizationName + " on Solaris")
+                .html(buildOrganizationInviteEmail(organizationName, role, inviteLink))
+                .build();
+
+        try {
+            resend.emails().send(params);
+        } catch (Exception exception) {
+            exception.printStackTrace();
+            throw new IllegalStateException("Could not send organization invite email: " + exception.getMessage());
+        }
+    }
+
     public void sendPasswordReset(String to, String resetLink) {
         if (resendApiKey == null || resendApiKey.isBlank()) {
             System.out.println("==================================================");
@@ -104,5 +136,27 @@ public class EmailService {
                 </p>
             </div>
             """.formatted(resetLink);
+    }
+
+    private String buildOrganizationInviteEmail(
+            String organizationName,
+            String role,
+            String inviteLink
+    ) {
+        return """
+            <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+                <h1 style="color: #0f172a;">Join %s on Solaris</h1>
+                <p style="color: #334155; font-size: 16px;">
+                    You have been invited to join <strong>%s</strong> as <strong>%s</strong>.
+                </p>
+                <a href="%s"
+                   style="display: inline-block; margin-top: 16px; background: #2563eb; color: white; padding: 12px 18px; border-radius: 10px; text-decoration: none; font-weight: 600;">
+                    Accept invitation
+                </a>
+                <p style="color: #64748b; font-size: 13px; margin-top: 24px;">
+                    This link expires in 7 days. If you did not expect this invitation, you can ignore this email.
+                </p>
+            </div>
+            """.formatted(organizationName, organizationName, role, inviteLink);
     }
 }

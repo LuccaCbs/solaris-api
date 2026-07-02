@@ -37,6 +37,21 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
 
     List<OrganizationMember> findAllByOrganizationId(Long organizationId);
 
+    Optional<OrganizationMember> findByUserAndOrganizationId(User user, Long organizationId);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(om) > 0 THEN true ELSE false END
+            FROM OrganizationMember om
+            WHERE om.organization.id = :organizationId
+              AND LOWER(om.user.email) = LOWER(:email)
+              AND om.status = :status
+            """)
+    boolean existsByOrganizationIdAndUserEmailIgnoreCaseAndStatus(
+            @Param("organizationId") Long organizationId,
+            @Param("email") String email,
+            @Param("status") OrganizationMemberStatus status
+    );
+
     @Query("SELECT om.user.id FROM OrganizationMember om WHERE om.organization.id = :organizationId AND om.status = :status")
     List<Long> findUserIdsByOrganizationIdAndStatus(
             @Param("organizationId") Long organizationId,
