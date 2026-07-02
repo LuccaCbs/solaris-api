@@ -24,4 +24,5 @@ public class ProductResponse {
     private Integer lowStockThreshold;
     private Integer effectiveLowStockThreshold;
     private Boolean lowStock;
+    private Boolean active;
 }

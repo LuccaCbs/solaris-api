@@ -88,6 +88,53 @@ public class SupplierOrderService {
                 .toList();
     }
 
+    @Transactional
+    public SupplierOrderResponse updateSupplierOrder(Long id, SupplierOrderRequest request) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
+
+        if (supplierOrder.getStatus() != SupplierOrderStatus.DRAFT) {
+            throw new IllegalStateException("Only draft supplier orders can be edited");
+        }
+
+        Supplier supplier = supplierRepository.findByIdAndUser(request.getSupplierId(), currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        List<SupplierOrderItem> items = request.getItems()
+                .stream()
+                .map(itemRequest -> {
+                    Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+                    return SupplierOrderItem.builder()
+                            .supplierOrder(supplierOrder)
+                            .product(product)
+                            .quantity(itemRequest.getQuantity())
+                            .build();
+                })
+                .toList();
+
+        supplierOrder.getItems().clear();
+        supplierOrder.getItems().addAll(items);
+        supplierOrder.setSupplier(supplier);
+        supplierOrder.setMessagePreview(buildMessagePreview(supplier, items));
+        supplierOrder.setUpdatedAt(LocalDateTime.now());
+
+        SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.SUPPLIER_ORDER,
+                savedOrder.getId(),
+                "Supplier Order #" + savedOrder.getId(),
+                "Supplier order updated"
+        );
+
+        return mapToResponse(savedOrder);
+    }
+
     public SupplierOrderResponse getSupplierOrderById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -103,6 +150,10 @@ public class SupplierOrderService {
 
         SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
+
+        if (supplierOrder.getStatus() != SupplierOrderStatus.DRAFT) {
+            throw new IllegalStateException("Only draft supplier orders can be marked as sent");
+        }
 
         supplierOrder.setStatus(SupplierOrderStatus.SENT);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
@@ -127,6 +178,10 @@ public class SupplierOrderService {
         SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
+        if (supplierOrder.getStatus() != SupplierOrderStatus.SENT) {
+            throw new IllegalStateException("Only sent supplier orders can be completed");
+        }
+
         supplierOrder.setStatus(SupplierOrderStatus.COMPLETED);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
 
@@ -150,6 +205,10 @@ public class SupplierOrderService {
         SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
+        if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED) {
+            throw new IllegalStateException("Completed supplier orders cannot be cancelled");
+        }
+
         supplierOrder.setStatus(SupplierOrderStatus.CANCELLED);
         supplierOrder.setUpdatedAt(LocalDateTime.now());
 
@@ -171,6 +230,10 @@ public class SupplierOrderService {
 
         SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
+
+        if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED) {
+            throw new IllegalStateException("Completed supplier orders can't be deleted");
+        }
 
         auditLogService.log(
                 AuditAction.DELETE,

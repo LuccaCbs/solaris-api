@@ -309,6 +309,7 @@ public class ProductService {
                 .createdAt(LocalDateTime.now())
                 .category(category)
                 .user(currentUser)
+                .active(true)
                 .build();
 
         Product savedProduct = productRepository.save(product);
@@ -382,7 +383,7 @@ public class ProductService {
                 .build();
     }
 
-    public List<ProductResponse> getAllProducts(String search) {
+    public List<ProductResponse> getAllProducts(String search, Boolean active) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
         List<Product> products;
@@ -402,6 +403,7 @@ public class ProductService {
         }
 
         return products.stream()
+                .filter(product -> active == null || product.getActive().equals(active))
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -458,21 +460,46 @@ public class ProductService {
         return mapToResponse(updatedProduct);
     }
 
-    public void deleteProduct(Long id) {
+    public ProductResponse deactivateProduct(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
         Product product = productRepository.findByIdAndUser(id, currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        productRepository.delete(product);
+        product.setActive(false);
+
+        Product updatedProduct = productRepository.save(product);
 
         auditLogService.log(
                 AuditAction.CREATE,
                 AuditEntityType.PRODUCT,
-                product.getId(),
-                product.getName(),
-                "Product deleted: " + product.getName()
+                updatedProduct.getId(),
+                updatedProduct.getName(),
+                "Product deactivated: " + updatedProduct.getName()
         );
+
+        return mapToResponse(updatedProduct);
+    }
+
+    public ProductResponse activateProduct(Long id) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Product product = productRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        product.setActive(true);
+
+        Product updatedProduct = productRepository.save(product);
+
+        auditLogService.log(
+                AuditAction.CREATE,
+                AuditEntityType.PRODUCT,
+                updatedProduct.getId(),
+                updatedProduct.getName(),
+                "Product activated: " + updatedProduct.getName()
+        );
+
+        return mapToResponse(updatedProduct);
     }
 
     private ProductResponse mapToResponse(Product product) {
@@ -499,6 +526,7 @@ public class ProductService {
                 .createdAt(product.getCreatedAt())
                 .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
                 .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
+                .active(product.getActive())
                 .build();
     }
 }

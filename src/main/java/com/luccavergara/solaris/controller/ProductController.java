@@ -53,9 +53,10 @@ public class ProductController {
 
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getAllProducts(
-            @RequestParam(required = false) String search
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean active
     ) {
-        return ResponseEntity.ok(productService.getAllProducts(search));
+        return ResponseEntity.ok(productService.getAllProducts(search, active));
     }
 
     @GetMapping("/{id}")
@@ -73,11 +74,17 @@ public class ProductController {
         return ResponseEntity.ok(productService.updateProduct(id, request));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduct(
+    @PatchMapping("/{id}/deactivate")
+    public ResponseEntity<ProductResponse> deactivateProduct(
             @PathVariable Long id
     ) {
-        productService.deleteProduct(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(productService.deactivateProduct(id));
+    }
+
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<ProductResponse> activateProduct(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(productService.activateProduct(id));
     }
 }

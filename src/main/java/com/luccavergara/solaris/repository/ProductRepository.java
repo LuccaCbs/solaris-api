@@ -35,4 +35,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     );
 
     Optional<Product> findByNameIgnoreCaseAndUser(String name, User user);
+
+    List<Product> findAllByUserAndActiveTrue(User user);
+
+    List<Product> findByUserAndActiveTrueAndNameContainingIgnoreCaseOrUserAndActiveTrueAndSkuContainingIgnoreCaseOrUserAndActiveTrueAndDescriptionContainingIgnoreCase(
+            User user1,
+            String name,
+            User user2,
+            String sku,
+            User user3,
+            String description
+    );
 }

@@ -35,6 +35,14 @@ public class SupplierOrderController {
         return supplierOrderService.getSupplierOrderById(id);
     }
 
+    @PutMapping("/{id}")
+    public SupplierOrderResponse updateSupplierOrder(
+            @PathVariable Long id,
+            @Valid @RequestBody SupplierOrderRequest request
+    ) {
+        return supplierOrderService.updateSupplierOrder(id, request);
+    }
+
     @PatchMapping("/{id}/sent")
     public SupplierOrderResponse markAsSent(@PathVariable Long id) {
         return supplierOrderService.markAsSent(id);
