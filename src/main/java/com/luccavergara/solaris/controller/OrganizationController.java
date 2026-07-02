@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.*;
+import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.List;
 public class OrganizationController {
 
     private final OrganizationInviteService organizationInviteService;
+    private final FiscalDocumentService fiscalDocumentService;
 
     @PostMapping("/{orgId}/invites")
     @ResponseStatus(HttpStatus.CREATED)
@@ -59,5 +61,20 @@ public class OrganizationController {
             @Valid @RequestBody AcceptOrganizationInviteRequest request
     ) {
         return organizationInviteService.acceptInvite(request);
+    }
+
+    @GetMapping("/{orgId}/fiscal-config")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public FiscalConfigResponse getFiscalConfig(@PathVariable Long orgId) {
+        return fiscalDocumentService.getFiscalConfig(orgId);
+    }
+
+    @PutMapping("/{orgId}/fiscal-config")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public FiscalConfigResponse updateFiscalConfig(
+            @PathVariable Long orgId,
+            @Valid @RequestBody FiscalConfigRequest request
+    ) {
+        return fiscalDocumentService.updateFiscalConfig(orgId, request);
     }
 }

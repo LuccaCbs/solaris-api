@@ -15,6 +15,7 @@ import com.luccavergara.solaris.entity.StockMovementType;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CashRegisterSessionRepository;
+import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.ProductRepository;
 import com.luccavergara.solaris.repository.SaleRepository;
 import com.luccavergara.solaris.repository.StockMovementRepository;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 public class SaleService {
 
     private final SaleRepository saleRepository;
+    private final FiscalDocumentRepository fiscalDocumentRepository;
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
@@ -243,6 +245,8 @@ public class SaleService {
     }
 
     private SaleResponse mapToResponse(Sale sale) {
+        var fiscalDocument = fiscalDocumentRepository.findBySaleId(sale.getId()).orElse(null);
+
         return SaleResponse.builder()
                 .id(sale.getId())
                 .cashRegisterSessionId(
@@ -259,6 +263,8 @@ public class SaleService {
                                 .map(this::mapItemToResponse)
                                 .toList()
                 )
+                .invoiced(fiscalDocument != null)
+                .fiscalDocumentId(fiscalDocument != null ? fiscalDocument.getId() : null)
                 .build();
     }
 

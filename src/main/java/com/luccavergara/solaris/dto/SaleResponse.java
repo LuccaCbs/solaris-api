@@ -20,4 +20,6 @@ public class SaleResponse {
     private LocalDateTime createdAt;
     private Long cashRegisterSessionId;
     private List<SaleItemResponse> items;
+    private Boolean invoiced;
+    private Long fiscalDocumentId;
 }

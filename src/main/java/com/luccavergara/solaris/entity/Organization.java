@@ -31,6 +31,17 @@ public class Organization {
     @Column(nullable = false)
     private String timezone;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fiscal_provider", nullable = false)
+    @Builder.Default
+    private FiscalProviderType fiscalProvider = FiscalProviderType.MOCK;
+
+    @Column(name = "fiscal_api_key", length = 512)
+    private String fiscalApiKey;
+
+    @Column(name = "fiscal_punto_venta")
+    private Integer fiscalPuntoVenta;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
