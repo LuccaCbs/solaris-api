@@ -12,6 +12,7 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Service
@@ -25,6 +26,10 @@ public class JwtService {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public Optional<Long> extractOrganizationId(String token) {
+        return Optional.ofNullable(extractClaim(token, claims -> claims.get("orgId", Long.class)));
     }
 
     public String generateToken(UserDetails userDetails) {

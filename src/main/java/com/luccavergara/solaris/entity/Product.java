@@ -7,7 +7,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "products")
+@Table(
+        name = "products",
+        uniqueConstraints = @UniqueConstraint(name = "uk_products_organization_sku", columnNames = {"organization_id", "sku"})
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,7 +28,7 @@ public class Product {
     @Column(length = 1000)
     private String description;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String sku;
 
     @Column(nullable = false)
@@ -43,6 +46,14 @@ public class Product {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
