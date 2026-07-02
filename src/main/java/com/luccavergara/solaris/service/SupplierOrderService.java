@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.StockMovementRequest;
 import com.luccavergara.solaris.dto.SupplierOrderItemResponse;
 import com.luccavergara.solaris.dto.SupplierOrderRequest;
 import com.luccavergara.solaris.dto.SupplierOrderResponse;
@@ -7,6 +8,7 @@ import com.luccavergara.solaris.entity.Product;
 import com.luccavergara.solaris.entity.Supplier;
 import com.luccavergara.solaris.entity.SupplierOrder;
 import com.luccavergara.solaris.entity.SupplierOrderItem;
+import com.luccavergara.solaris.entity.StockMovementType;
 import com.luccavergara.solaris.entity.SupplierOrderStatus;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
@@ -33,6 +35,7 @@ public class SupplierOrderService {
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
+    private final StockMovementService stockMovementService;
 
     @Transactional
     public SupplierOrderResponse createSupplierOrder(SupplierOrderRequest request) {
@@ -186,8 +189,25 @@ public class SupplierOrderService {
         SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
+        if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED) {
+            return mapToResponse(supplierOrder);
+        }
+
         if (supplierOrder.getStatus() != SupplierOrderStatus.SENT) {
             throw new IllegalStateException("Only sent supplier orders can be completed");
+        }
+
+        String stockReason = "Supplier order #" + supplierOrder.getId() + " completed";
+
+        for (SupplierOrderItem item : supplierOrder.getItems()) {
+            stockMovementService.createMovement(
+                    StockMovementRequest.builder()
+                            .productId(item.getProduct().getId())
+                            .type(StockMovementType.IN)
+                            .quantity(item.getQuantity())
+                            .reason(stockReason)
+                            .build()
+            );
         }
 
         supplierOrder.setStatus(SupplierOrderStatus.COMPLETED);
@@ -200,7 +220,7 @@ public class SupplierOrderService {
                 AuditEntityType.SUPPLIER_ORDER,
                 savedOrder.getId(),
                 "Supplier Order #" + savedOrder.getId(),
-                "Supplier order completed"
+                "Supplier order completed and stock updated"
         );
 
         return mapToResponse(savedOrder);

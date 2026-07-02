@@ -17,6 +17,7 @@ public class TenantQueryService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
+    private final CustomerRepository customerRepository;
     private final SaleRepository saleRepository;
     private final StockMovementRepository stockMovementRepository;
     private final SupplierOrderRepository supplierOrderRepository;
@@ -148,6 +149,20 @@ public class TenantQueryService {
         return tenantScopeService.resolveOrganizationId(user)
                 .flatMap(orgId -> supplierRepository.findByIdAndOrganizationId(id, orgId))
                 .or(() -> supplierRepository.findByIdAndUser(id, user));
+    }
+
+    public List<Customer> findAllCustomers() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(customerRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                .orElseGet(() -> customerRepository.findAllByUserOrderByCreatedAtDesc(user));
+    }
+
+    public Optional<Customer> findCustomerById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> customerRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> customerRepository.findByIdAndUser(id, user));
     }
 
     public List<Sale> findAllSales() {
