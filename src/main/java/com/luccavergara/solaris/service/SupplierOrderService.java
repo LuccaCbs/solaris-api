@@ -31,12 +31,14 @@ public class SupplierOrderService {
     private final ProductRepository productRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     @Transactional
     public SupplierOrderResponse createSupplierOrder(SupplierOrderRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Supplier supplier = supplierRepository.findByIdAndUser(request.getSupplierId(), currentUser)
+        Supplier supplier = tenantQueryService.findSupplierById(request.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         LocalDateTime now = LocalDateTime.now();
@@ -52,7 +54,7 @@ public class SupplierOrderService {
         List<SupplierOrderItem> items = request.getItems()
                 .stream()
                 .map(itemRequest -> {
-                    Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
+                    Product product = tenantQueryService.findProductById(itemRequest.getProductId())
                             .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
                     return SupplierOrderItem.builder()
@@ -65,6 +67,12 @@ public class SupplierOrderService {
 
         supplierOrder.setItems(items);
         supplierOrder.setMessagePreview(buildMessagePreview(supplier, items));
+
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    supplierOrder.setOrganization(organization);
+                    supplierOrder.setCreatedBy(currentUser);
+                });
 
         SupplierOrder savedOrder = supplierOrderRepository.save(supplierOrder);
 
@@ -82,7 +90,7 @@ public class SupplierOrderService {
     public List<SupplierOrderResponse> getAllSupplierOrders() {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        return supplierOrderRepository.findAllByUser(currentUser)
+        return tenantQueryService.findAllSupplierOrders()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -92,20 +100,20 @@ public class SupplierOrderService {
     public SupplierOrderResponse updateSupplierOrder(Long id, SupplierOrderRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         if (supplierOrder.getStatus() != SupplierOrderStatus.DRAFT) {
             throw new IllegalStateException("Only draft supplier orders can be edited");
         }
 
-        Supplier supplier = supplierRepository.findByIdAndUser(request.getSupplierId(), currentUser)
+        Supplier supplier = tenantQueryService.findSupplierById(request.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         List<SupplierOrderItem> items = request.getItems()
                 .stream()
                 .map(itemRequest -> {
-                    Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
+                    Product product = tenantQueryService.findProductById(itemRequest.getProductId())
                             .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
                     return SupplierOrderItem.builder()
@@ -138,7 +146,7 @@ public class SupplierOrderService {
     public SupplierOrderResponse getSupplierOrderById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         return mapToResponse(supplierOrder);
@@ -148,7 +156,7 @@ public class SupplierOrderService {
     public SupplierOrderResponse markAsSent(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         if (supplierOrder.getStatus() != SupplierOrderStatus.DRAFT) {
@@ -175,7 +183,7 @@ public class SupplierOrderService {
     public SupplierOrderResponse markAsCompleted(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         if (supplierOrder.getStatus() != SupplierOrderStatus.SENT) {
@@ -202,7 +210,7 @@ public class SupplierOrderService {
     public SupplierOrderResponse cancelSupplierOrder(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED) {
@@ -228,7 +236,7 @@ public class SupplierOrderService {
     public void deleteSupplierOrder(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdAndUser(id, currentUser)
+        SupplierOrder supplierOrder = tenantQueryService.findSupplierOrderById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier order not found"));
 
         if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED) {

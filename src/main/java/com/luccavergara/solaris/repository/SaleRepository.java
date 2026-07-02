@@ -12,7 +12,11 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     List<Sale> findAllByUserOrderByCreatedAtDesc(User user);
 
+    List<Sale> findAllByOrganizationIdOrderByCreatedAtDesc(Long organizationId);
+
     Optional<Sale> findByIdAndUser(Long id, User user);
+
+    Optional<Sale> findByIdAndOrganizationId(Long id, Long organizationId);
 
     List<Sale> findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(
             User user,
@@ -20,8 +24,19 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             LocalDateTime end
     );
 
+    List<Sale> findByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+            Long organizationId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
     List<Sale> findAllByCashRegisterSessionIdAndUser(
             Long cashRegisterSessionId,
             User user
+    );
+
+    List<Sale> findAllByCashRegisterSessionIdAndOrganizationId(
+            Long cashRegisterSessionId,
+            Long organizationId
     );
 }

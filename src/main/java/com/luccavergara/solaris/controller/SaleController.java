@@ -3,6 +3,7 @@ package com.luccavergara.solaris.controller;
 import com.luccavergara.solaris.dto.SaleRequest;
 import com.luccavergara.solaris.dto.SaleResponse;
 import com.luccavergara.solaris.service.SaleService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/sales")
 @RequiredArgsConstructor
+@PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
 public class SaleController {
 
     private final SaleService saleService;

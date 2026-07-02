@@ -3,6 +3,7 @@ package com.luccavergara.solaris.controller;
 import com.luccavergara.solaris.dto.AuthenticationRequest;
 import com.luccavergara.solaris.dto.AuthenticationResponse;
 import com.luccavergara.solaris.dto.RegisterRequest;
+import com.luccavergara.solaris.dto.SelectOrganizationRequest;
 import com.luccavergara.solaris.service.AuthenticationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,6 @@ import com.luccavergara.solaris.dto.ForgotPasswordRequest;
 import com.luccavergara.solaris.dto.MessageResponse;
 import com.luccavergara.solaris.dto.ResetPasswordRequest;
 import com.luccavergara.solaris.service.PasswordResetService;
-
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -37,6 +37,13 @@ public class AuthController {
             @Valid @RequestBody AuthenticationRequest request
     ) {
         return ResponseEntity.ok(authenticationService.authenticate(request));
+    }
+
+    @PostMapping("/select-organization")
+    public ResponseEntity<AuthenticationResponse> selectOrganization(
+            @Valid @RequestBody SelectOrganizationRequest request
+    ) {
+        return ResponseEntity.ok(authenticationService.selectOrganization(request));
     }
 
     @GetMapping("/verify-email")

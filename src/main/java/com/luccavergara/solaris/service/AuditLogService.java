@@ -17,6 +17,7 @@ public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final TenantQueryService tenantQueryService;
 
     public void log(
             AuditAction action,
@@ -58,7 +59,7 @@ public class AuditLogService {
 
 
     public List<AuditLogResponse> getAuditLogs() {
-        return auditLogRepository.findAllByOrderByCreatedAtDesc()
+        return tenantQueryService.findAuditLogs()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

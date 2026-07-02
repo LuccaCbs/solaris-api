@@ -6,6 +6,7 @@ import com.luccavergara.solaris.service.SystemSettingsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.luccavergara.solaris.dto.ValidateAdminPasswordRequest;
 import com.luccavergara.solaris.dto.ValidateAdminPasswordResponse;
@@ -13,6 +14,7 @@ import com.luccavergara.solaris.dto.ValidateAdminPasswordResponse;
 @RestController
 @RequestMapping("/api/v1/admin/settings")
 @RequiredArgsConstructor
+@PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
 public class SystemSettingsController {
 
     private final SystemSettingsService systemSettingsService;

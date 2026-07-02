@@ -42,13 +42,14 @@ public class SaleService {
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     @Transactional
     public SaleResponse createSale(SaleRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        CashRegisterSession cashRegisterSession = cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        CashRegisterSession cashRegisterSession = tenantQueryService.findOpenCashRegisterSession()
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
 
         Sale sale = Sale.builder()
@@ -66,7 +67,7 @@ public class SaleService {
             int quantity = itemRequest.getQuantity();
 
             if (itemRequest.getType() == SaleItemType.PRODUCT) {
-                Product product = productRepository.findByIdAndUser(itemRequest.getProductId(), currentUser)
+                Product product = tenantQueryService.findProductById(itemRequest.getProductId())
                         .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
                 int previousStock = product.getStockQuantity();
@@ -106,6 +107,12 @@ public class SaleService {
                         .reason("Sale transaction")
                         .createdAt(LocalDateTime.now())
                         .build();
+
+                tenantScopeService.getOrganizationReference(currentUser)
+                        .ifPresent(organization -> {
+                            movement.setOrganization(organization);
+                            movement.setCreatedBy(currentUser);
+                        });
 
                 stockMovementRepository.save(movement);
 
@@ -153,6 +160,12 @@ public class SaleService {
 
         sale.setTotalAmount(totalAmount);
 
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    sale.setOrganization(organization);
+                    sale.setCreatedBy(currentUser);
+                });
+
         Sale savedSale = saleRepository.save(sale);
 
         auditLogService.log(
@@ -169,7 +182,7 @@ public class SaleService {
     public List<SaleResponse> getAllSales() {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        return saleRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
+        return tenantQueryService.findAllSales()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -178,7 +191,7 @@ public class SaleService {
     public SaleResponse getSaleById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Sale sale = saleRepository.findByIdAndUser(id, currentUser)
+        Sale sale = tenantQueryService.findSaleById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found"));
 
         return mapToResponse(sale);
@@ -192,8 +205,7 @@ public class SaleService {
         LocalDateTime startOfDay = targetDate.atStartOfDay();
         LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
 
-        List<Sale> sales = saleRepository.findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(
-                currentUser,
+        List<Sale> sales = tenantQueryService.findSalesBetween(
                 startOfDay,
                 endOfDay
         );

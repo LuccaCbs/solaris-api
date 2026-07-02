@@ -1,0 +1,288 @@
+package com.luccavergara.solaris.service;
+
+import com.luccavergara.solaris.entity.*;
+import com.luccavergara.solaris.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+public class TenantQueryService {
+
+    private final TenantScopeService tenantScopeService;
+    private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
+    private final SupplierRepository supplierRepository;
+    private final SaleRepository saleRepository;
+    private final StockMovementRepository stockMovementRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
+    private final SystemSettingsRepository systemSettingsRepository;
+    private final CashRegisterSessionRepository cashRegisterSessionRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
+
+    public Optional<Product> findProductById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> productRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> productRepository.findByIdAndUser(id, user));
+    }
+
+    public List<Product> findAllProducts() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(productRepository::findAllByOrganizationId)
+                .orElseGet(() -> productRepository.findAllByUser(user));
+    }
+
+    public List<Product> searchProducts(String search) {
+        User user = tenantScopeService.getCurrentUser();
+        Optional<Long> organizationId = tenantScopeService.resolveOrganizationId(user);
+
+        if (organizationId.isPresent()) {
+            Long orgId = organizationId.get();
+            return productRepository
+                    .findByOrganizationIdAndNameContainingIgnoreCaseOrOrganizationIdAndSkuContainingIgnoreCaseOrOrganizationIdAndDescriptionContainingIgnoreCase(
+                            orgId,
+                            search,
+                            orgId,
+                            search,
+                            orgId,
+                            search
+                    );
+        }
+
+        return productRepository
+                .findByUserAndNameContainingIgnoreCaseOrUserAndSkuContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
+                        user,
+                        search,
+                        user,
+                        search,
+                        user,
+                        search
+                );
+    }
+
+    public List<Product> findProductsBySkuPrefix(String prefix) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> productRepository.findByOrganizationIdAndSkuStartingWith(orgId, prefix))
+                .orElseGet(() -> productRepository.findByUserAndSkuStartingWith(user, prefix));
+    }
+
+    public boolean existsProductBySku(String sku) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> productRepository.existsBySkuAndOrganizationId(sku, orgId))
+                .orElseGet(() -> productRepository.existsBySkuAndUser(sku, user));
+    }
+
+    public boolean existsProductByName(String name) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> productRepository.existsByNameIgnoreCaseAndOrganizationId(name, orgId))
+                .orElseGet(() -> productRepository.existsByNameIgnoreCaseAndUser(name, user));
+    }
+
+    public boolean existsProductByNameExcludingId(String name, Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> productRepository.existsByNameIgnoreCaseAndOrganizationIdAndIdNot(name, orgId, id))
+                .orElseGet(() -> productRepository.existsByNameIgnoreCaseAndUserAndIdNot(name, user, id));
+    }
+
+    public Optional<Product> findProductByNameIgnoreCase(String name) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> productRepository.findByNameIgnoreCaseAndOrganizationId(name, orgId))
+                .or(() -> productRepository.findByNameIgnoreCaseAndUser(name, user));
+    }
+
+    public List<Category> findAllCategories() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(categoryRepository::findAllByOrganizationId)
+                .orElseGet(() -> categoryRepository.findAllByUser(user));
+    }
+
+    public Optional<Category> findCategoryById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> categoryRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> categoryRepository.findByIdAndUser(id, user));
+    }
+
+    public Optional<Category> findCategoryByNameIgnoreCase(String name) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> categoryRepository.findByNameIgnoreCaseAndOrganizationId(name, orgId))
+                .or(() -> categoryRepository.findByNameIgnoreCaseAndUser(name, user));
+    }
+
+    public Optional<Category> findCategoryByNameIgnoreCase(User user, String name) {
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> categoryRepository.findByNameIgnoreCaseAndOrganizationId(name, orgId))
+                .or(() -> categoryRepository.findByNameIgnoreCaseAndUser(name, user));
+    }
+
+    public boolean existsCategoryByName(String name) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> categoryRepository.existsByNameIgnoreCaseAndOrganizationId(name, orgId))
+                .orElseGet(() -> categoryRepository.existsByNameIgnoreCaseAndUser(name, user));
+    }
+
+    public List<Supplier> findAllSuppliers() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(supplierRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                .orElseGet(() -> supplierRepository.findAllByUserOrderByCreatedAtDesc(user));
+    }
+
+    public Optional<Supplier> findSupplierById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> supplierRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> supplierRepository.findByIdAndUser(id, user));
+    }
+
+    public List<Sale> findAllSales() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(saleRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                .orElseGet(() -> saleRepository.findAllByUserOrderByCreatedAtDesc(user));
+    }
+
+    public Optional<Sale> findSaleById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> saleRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> saleRepository.findByIdAndUser(id, user));
+    }
+
+    public List<Sale> findSalesBetween(LocalDateTime start, LocalDateTime end) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> saleRepository.findByOrganizationIdAndCreatedAtBetweenOrderByCreatedAtDesc(orgId, start, end))
+                .orElseGet(() -> saleRepository.findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(user, start, end));
+    }
+
+    public List<Sale> findSalesByCashRegisterSessionId(Long cashRegisterSessionId) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> saleRepository.findAllByCashRegisterSessionIdAndOrganizationId(cashRegisterSessionId, orgId))
+                .orElseGet(() -> saleRepository.findAllByCashRegisterSessionIdAndUser(cashRegisterSessionId, user));
+    }
+
+    public List<StockMovement> findAllStockMovements() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(stockMovementRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                .orElseGet(() -> stockMovementRepository.findAllByUserOrderByCreatedAtDesc(user));
+    }
+
+    public List<StockMovement> findStockMovementsByProductId(Long productId) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> stockMovementRepository.findByProductIdAndOrganizationIdOrderByCreatedAtDesc(productId, orgId))
+                .orElseGet(() -> stockMovementRepository.findByProductIdAndUserOrderByCreatedAtDesc(productId, user));
+    }
+
+    public List<SupplierOrder> findAllSupplierOrders() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(supplierOrderRepository::findAllByOrganizationId)
+                .orElseGet(() -> supplierOrderRepository.findAllByUser(user));
+    }
+
+    public Optional<SupplierOrder> findSupplierOrderById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> supplierOrderRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> supplierOrderRepository.findByIdAndUser(id, user));
+    }
+
+    public Optional<SystemSettings> findSystemSettings() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(systemSettingsRepository::findByOrganizationId)
+                .or(() -> systemSettingsRepository.findByUser(user));
+    }
+
+    public Optional<SystemSettings> findSystemSettings(User user) {
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(systemSettingsRepository::findByOrganizationId)
+                .or(() -> systemSettingsRepository.findByUser(user));
+    }
+
+    public Optional<CashRegisterSession> findOpenCashRegisterSession() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        orgId
+                ))
+                .or(() -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        user
+                ));
+    }
+
+    public Optional<CashRegisterSession> findOpenCashRegisterSession(User user) {
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        orgId
+                ))
+                .or(() -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        user
+                ));
+    }
+
+    public Optional<CashRegisterSession> findCashRegisterSessionForDay(LocalDateTime start, LocalDateTime end) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByOrganizationIdAndOpenedAtBetweenOrderByOpenedAtDesc(
+                        orgId,
+                        start,
+                        end
+                ))
+                .or(() -> cashRegisterSessionRepository.findFirstByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
+                        user,
+                        start,
+                        end
+                ));
+    }
+
+    public Optional<CashRegisterSession> findCashRegisterSessionById(Long id) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .flatMap(orgId -> cashRegisterSessionRepository.findByIdAndOrganizationId(id, orgId))
+                .or(() -> cashRegisterSessionRepository.findByIdAndUser(id, user));
+    }
+
+    public List<AuditLog> findAuditLogs() {
+        User user = tenantScopeService.getCurrentUser();
+        Optional<Long> organizationId = tenantScopeService.resolveOrganizationId(user);
+
+        if (organizationId.isPresent()) {
+            List<Long> userIds = organizationMemberRepository.findUserIdsByOrganizationIdAndStatus(
+                    organizationId.get(),
+                    OrganizationMemberStatus.ACTIVE
+            );
+
+            if (userIds.isEmpty()) {
+                return List.of();
+            }
+
+            return auditLogRepository.findAllByUserIdInOrderByCreatedAtDesc(userIds);
+        }
+
+        return auditLogRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId());
+    }
+}

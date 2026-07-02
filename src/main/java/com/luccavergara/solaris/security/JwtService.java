@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.security;
 
+import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -18,6 +19,10 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
+    public static final String CLAIM_ORG_ID = "orgId";
+    public static final String CLAIM_ROLE = "role";
+    public static final String CLAIM_STORE_ID = "storeId";
+
     @Value("${application.security.jwt.secret-key}")
     private String secretKey;
 
@@ -29,7 +34,16 @@ public class JwtService {
     }
 
     public Optional<Long> extractOrganizationId(String token) {
-        return Optional.ofNullable(extractClaim(token, claims -> claims.get("orgId", Long.class)));
+        return Optional.ofNullable(extractClaim(token, claims -> claims.get(CLAIM_ORG_ID, Long.class)));
+    }
+
+    public Optional<OrganizationMemberRole> extractOrganizationRole(String token) {
+        return Optional.ofNullable(extractClaim(token, claims -> claims.get(CLAIM_ROLE, String.class)))
+                .map(OrganizationMemberRole::valueOf);
+    }
+
+    public Optional<Long> extractStoreId(String token) {
+        return Optional.ofNullable(extractClaim(token, claims -> claims.get(CLAIM_STORE_ID, Long.class)));
     }
 
     public String generateToken(UserDetails userDetails) {

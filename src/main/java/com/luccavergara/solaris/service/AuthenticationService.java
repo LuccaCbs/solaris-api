@@ -3,6 +3,7 @@ package com.luccavergara.solaris.service;
 import com.luccavergara.solaris.dto.AuthenticationRequest;
 import com.luccavergara.solaris.dto.AuthenticationResponse;
 import com.luccavergara.solaris.dto.RegisterRequest;
+import com.luccavergara.solaris.dto.SelectOrganizationRequest;
 import com.luccavergara.solaris.entity.Role;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.UserRepository;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,6 +34,8 @@ public class AuthenticationService {
     private final CategoryRepository categoryRepository;
     private final EmailVerificationService emailVerificationService;
     private final AuditLogService auditLogService;
+    private final OrganizationMembershipService organizationMembershipService;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public RegisterResponse register(RegisterRequest request) {
 
@@ -94,7 +98,38 @@ public class AuthenticationService {
                 "User logged in"
         );
 
-        var jwtToken = jwtService.generateToken(user);
+        var jwtToken = organizationMembershipService.findPrimaryMembership(user)
+                .map(membership -> jwtService.generateToken(
+                        organizationMembershipService.buildJwtClaims(membership),
+                        user
+                ))
+                .orElseGet(() -> jwtService.generateToken(user));
+
+        return AuthenticationResponse.builder()
+                .token(jwtToken)
+                .build();
+    }
+
+    public AuthenticationResponse selectOrganization(SelectOrganizationRequest request) {
+        User user = authenticatedUserService.getCurrentUser();
+
+        var membership = organizationMembershipService.resolveMembershipForOrganization(
+                user,
+                request.getOrganizationId()
+        );
+
+        if (request.getStoreId() != null) {
+            organizationMembershipService.validateStoreInOrganization(
+                    request.getOrganizationId(),
+                    request.getStoreId()
+            );
+        }
+
+        Map<String, Object> claims = organizationMembershipService.buildJwtClaims(
+                membership,
+                request.getStoreId()
+        );
+        String jwtToken = jwtService.generateToken(claims, user);
 
         return AuthenticationResponse.builder()
                 .token(jwtToken)

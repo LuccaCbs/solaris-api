@@ -11,5 +11,7 @@ public interface SystemSettingsRepository extends JpaRepository<SystemSettings, 
 
     Optional<SystemSettings> findByUser(User user);
 
+    Optional<SystemSettings> findByOrganizationId(Long organizationId);
+
     List<SystemSettings> findAll();
 }

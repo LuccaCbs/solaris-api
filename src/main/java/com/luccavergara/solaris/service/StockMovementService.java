@@ -22,11 +22,13 @@ public class StockMovementService {
     private final StockMovementRepository stockMovementRepository;
     private final ProductRepository productRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     public StockMovementResponse createMovement(StockMovementRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = productRepository.findByIdAndUser(request.getProductId(), currentUser)
+        Product product = tenantQueryService.findProductById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         int previousStock = product.getStockQuantity();
@@ -48,25 +50,27 @@ public class StockMovementService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    movement.setOrganization(organization);
+                    movement.setCreatedBy(currentUser);
+                });
+
         return mapToResponse(stockMovementRepository.save(movement));
     }
 
     public List<StockMovementResponse> getAllMovements() {
-        User currentUser = authenticatedUserService.getCurrentUser();
-
-        return stockMovementRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
+        return tenantQueryService.findAllStockMovements()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public List<StockMovementResponse> getMovementsByProduct(Long productId) {
-        User currentUser = authenticatedUserService.getCurrentUser();
-
-        productRepository.findByIdAndUser(productId, currentUser)
+        tenantQueryService.findProductById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        return stockMovementRepository.findByProductIdAndUserOrderByCreatedAtDesc(productId, currentUser)
+        return tenantQueryService.findStockMovementsByProductId(productId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

@@ -7,10 +7,6 @@ import com.luccavergara.solaris.entity.Product;
 import com.luccavergara.solaris.entity.Sale;
 import com.luccavergara.solaris.entity.SupplierOrder;
 import com.luccavergara.solaris.entity.SupplierOrderStatus;
-import com.luccavergara.solaris.entity.User;
-import com.luccavergara.solaris.repository.ProductRepository;
-import com.luccavergara.solaris.repository.SaleRepository;
-import com.luccavergara.solaris.repository.SupplierOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,17 +19,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DashboardService {
 
-    private final SaleRepository saleRepository;
-    private final ProductRepository productRepository;
-    private final SupplierOrderRepository supplierOrderRepository;
+    private final TenantQueryService tenantQueryService;
     private final SystemSettingsService systemSettingsService;
-    private final AuthenticatedUserService authenticatedUserService;
 
     public DashboardResponse getDashboard() {
-        User currentUser = authenticatedUserService.getCurrentUser();
-
-        List<Sale> sales = saleRepository.findAllByUserOrderByCreatedAtDesc(currentUser);
-        List<SupplierOrder> supplierOrders = supplierOrderRepository.findAllByUser(currentUser);
+        List<Sale> sales = tenantQueryService.findAllSales();
+        List<SupplierOrder> supplierOrders = tenantQueryService.findAllSupplierOrders();
 
         LocalDate today = LocalDate.now();
 
@@ -48,18 +39,18 @@ public class DashboardService {
         return DashboardResponse.builder()
                 .todaySalesCount(todaySales.size())
                 .todaySalesAmount(todaySalesAmount)
-                .lowStockProductsCount(countLowStockProducts(currentUser))
+                .lowStockProductsCount(countLowStockProducts())
                 .supplierOrders(buildSupplierOrdersResponse(supplierOrders))
                 .monthlySales(buildMonthlySales(sales))
                 .build();
     }
 
-    private Integer countLowStockProducts(User currentUser) {
+    private Integer countLowStockProducts() {
         Integer globalLowStockThreshold = systemSettingsService
                 .getOrCreateSettings()
                 .getGlobalLowStockThreshold();
 
-        return (int) productRepository.findAllByUser(currentUser)
+        return (int) tenantQueryService.findAllProducts()
                 .stream()
                 .filter(product -> isLowStock(product, globalLowStockThreshold))
                 .count();

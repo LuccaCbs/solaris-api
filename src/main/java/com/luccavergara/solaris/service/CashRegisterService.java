@@ -12,7 +12,6 @@ import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CashRegisterReopenLogRepository;
 import com.luccavergara.solaris.repository.CashRegisterSessionRepository;
-import com.luccavergara.solaris.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,11 +33,12 @@ public class CashRegisterService {
     private static final String SYSTEM_AUTO_CLOSE = "SYSTEM_AUTO_CLOSE";
 
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
-    private final SaleRepository saleRepository;
     private final CashRegisterReopenLogRepository cashRegisterReopenLogRepository;
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     @Transactional
     public CashRegisterSessionResponse openCashRegister(
@@ -50,17 +50,14 @@ public class CashRegisterService {
 
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
-        cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        tenantQueryService.findOpenCashRegisterSession()
                 .ifPresent(session -> {
                     throw new IllegalStateException("There is already an open cash register session");
                 });
 
         LocalDate today = getTodayByBusinessTimezone();
 
-        cashRegisterSessionRepository
-                .findFirstByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
-                        currentUser,
+        tenantQueryService.findCashRegisterSessionForDay(
                         today.atStartOfDay(),
                         today.atTime(LocalTime.MAX)
                 )
@@ -89,6 +86,12 @@ public class CashRegisterService {
                 .user(currentUser)
                 .build();
 
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    session.setOrganization(organization);
+                    session.setCreatedBy(currentUser);
+                });
+
         CashRegisterSession savedSession = cashRegisterSessionRepository.save(session);
 
         auditLogService.log(
@@ -107,8 +110,7 @@ public class CashRegisterService {
 
         autoCloseStaleOpenCashRegisterIfNeeded(currentUser);
 
-        CashRegisterSession session = cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        CashRegisterSession session = tenantQueryService.findOpenCashRegisterSession()
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
 
         return mapToResponse(session);
@@ -121,9 +123,7 @@ public class CashRegisterService {
 
         LocalDate today = getTodayByBusinessTimezone();
 
-        CashRegisterSession session = cashRegisterSessionRepository
-                .findFirstByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
-                        currentUser,
+        CashRegisterSession session = tenantQueryService.findCashRegisterSessionForDay(
                         today.atStartOfDay(),
                         today.atTime(LocalTime.MAX)
                 )
@@ -142,8 +142,7 @@ public class CashRegisterService {
 
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
-        CashRegisterSession session = cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        CashRegisterSession session = tenantQueryService.findOpenCashRegisterSession()
                 .orElseThrow(() -> new IllegalStateException("There is no open cash register session"));
 
         closeSession(session, currentUser.getEmail());
@@ -172,13 +171,12 @@ public class CashRegisterService {
 
         systemSettingsService.validateAdminPasswordOrThrow(request.getAdminPassword());
 
-        cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        tenantQueryService.findOpenCashRegisterSession()
                 .ifPresent(session -> {
                     throw new IllegalStateException("There is already an open cash register session");
                 });
 
-        CashRegisterSession session = cashRegisterSessionRepository.findByIdAndUser(id, currentUser)
+        CashRegisterSession session = tenantQueryService.findCashRegisterSessionById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cash register session not found"));
 
         if (session.getStatus() != CashRegisterStatus.CLOSED) {
@@ -210,6 +208,7 @@ public class CashRegisterService {
 
         return mapToResponse(savedSession);
     }
+
     @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void autoCloseOpenCashRegistersAtConfiguredTime() {
@@ -223,11 +222,7 @@ public class CashRegisterService {
                 continue;
             }
 
-            cashRegisterSessionRepository
-                    .findFirstByStatusAndUserOrderByOpenedAtDesc(
-                            CashRegisterStatus.OPEN,
-                            settings.getUser()
-                    )
+            tenantQueryService.findOpenCashRegisterSession(settings.getUser())
                     .ifPresent(session -> {
                         closeSession(session, SYSTEM_AUTO_CLOSE);
                         cashRegisterSessionRepository.save(session);
@@ -239,8 +234,7 @@ public class CashRegisterService {
     protected void autoCloseStaleOpenCashRegisterIfNeeded(User currentUser) {
         LocalDate today = getTodayByBusinessTimezone();
 
-        cashRegisterSessionRepository
-                .findFirstByStatusAndUserOrderByOpenedAtDesc(CashRegisterStatus.OPEN, currentUser)
+        tenantQueryService.findOpenCashRegisterSession(currentUser)
                 .ifPresent(session -> {
                     if (!session.getOpenedAt().toLocalDate().isBefore(today)) {
                         return;
@@ -255,10 +249,7 @@ public class CashRegisterService {
             CashRegisterSession session,
             String closedBy
     ) {
-        List<Sale> sessionSales = saleRepository.findAllByCashRegisterSessionIdAndUser(
-                session.getId(),
-                session.getUser()
-        );
+        List<Sale> sessionSales = tenantQueryService.findSalesByCashRegisterSessionId(session.getId());
 
         applySalesTotals(session, sessionSales);
 

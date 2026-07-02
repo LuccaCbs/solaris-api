@@ -38,6 +38,8 @@ public class ProductService {
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     public byte[] generateImportTemplate() {
         try (Workbook workbook = WorkbookFactory.create(true);
@@ -173,16 +175,19 @@ public class ProductService {
 
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Category category = categoryRepository.findByNameIgnoreCaseAndUser(categoryName.trim(), currentUser)
-                .orElseGet(() -> categoryRepository.save(
-                        Category.builder()
-                                .name(categoryName.trim())
-                                .description("")
-                                .createdAt(LocalDateTime.now())
-                                .systemCategory(false)
-                                .user(currentUser)
-                                .build()
-                ));
+        Category category = tenantQueryService.findCategoryByNameIgnoreCase(currentUser, categoryName.trim())
+                .orElseGet(() -> {
+                    Category newCategory = Category.builder()
+                            .name(categoryName.trim())
+                            .description("")
+                            .createdAt(LocalDateTime.now())
+                            .systemCategory(false)
+                            .user(currentUser)
+                            .build();
+                    tenantScopeService.getOrganizationReference(currentUser)
+                            .ifPresent(newCategory::setOrganization);
+                    return categoryRepository.save(newCategory);
+                });
 
         return category.getId();
     }
@@ -198,7 +203,7 @@ public class ProductService {
     private String generateAutomaticSku(User currentUser) {
         String prefix = "GEN-";
 
-        int maxNumber = productRepository.findByUserAndSkuStartingWith(currentUser, prefix)
+        int maxNumber = tenantQueryService.findProductsBySkuPrefix(prefix)
                 .stream()
                 .map(Product::getSku)
                 .map(sku -> sku.substring(prefix.length()))
@@ -215,28 +220,30 @@ public class ProductService {
             return getOrCreateDefaultCategory(currentUser);
         }
 
-        return categoryRepository.findByIdAndUser(categoryId, currentUser)
+        return tenantQueryService.findCategoryById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
     }
 
     private Category getOrCreateDefaultCategory(User currentUser) {
-        return categoryRepository.findByNameIgnoreCaseAndUser("General", currentUser)
-                .orElseGet(() -> categoryRepository.save(
-                        Category.builder()
-                                .name("General")
-                                .description("Default category")
-                                .createdAt(LocalDateTime.now())
-                                .systemCategory(true)
-                                .user(currentUser)
-                                .build()
-                ));
+        return tenantQueryService.findCategoryByNameIgnoreCase(currentUser, "General")
+                .orElseGet(() -> {
+                    Category category = Category.builder()
+                            .name("General")
+                            .description("Default category")
+                            .createdAt(LocalDateTime.now())
+                            .systemCategory(true)
+                            .user(currentUser)
+                            .build();
+                    tenantScopeService.getOrganizationReference(currentUser)
+                            .ifPresent(category::setOrganization);
+                    return categoryRepository.save(category);
+                });
     }
 
     private boolean updateExistingProductIfPresent(ProductRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product existingProduct = productRepository
-                .findByNameIgnoreCaseAndUser(request.getName(), currentUser)
+        Product existingProduct = tenantQueryService.findProductByNameIgnoreCase(request.getName())
                 .orElse(null);
 
         if (existingProduct == null) {
@@ -246,7 +253,7 @@ public class ProductService {
         String sku = resolveSkuForImportUpdate(request.getSku(), existingProduct, currentUser);
 
         if (!existingProduct.getSku().equals(sku)
-                && productRepository.existsBySkuAndUser(sku, currentUser)) {
+                && tenantQueryService.existsProductBySku(sku)) {
             throw new DuplicateResourceException("Product SKU already exists");
         }
 
@@ -287,13 +294,13 @@ public class ProductService {
     public ProductResponse createProduct(ProductRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        if (productRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
+        if (tenantQueryService.existsProductByName(request.getName())) {
             throw new DuplicateResourceException("Product name already exists");
         }
 
         String sku = resolveSku(request.getSku(), currentUser);
 
-        if (productRepository.existsBySkuAndUser(sku, currentUser)) {
+        if (tenantQueryService.existsProductBySku(sku)) {
             throw new DuplicateResourceException("Product SKU already exists");
         }
 
@@ -311,6 +318,12 @@ public class ProductService {
                 .user(currentUser)
                 .active(true)
                 .build();
+
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    product.setOrganization(organization);
+                    product.setCreatedBy(currentUser);
+                });
 
         Product savedProduct = productRepository.save(product);
 
@@ -389,17 +402,9 @@ public class ProductService {
         List<Product> products;
 
         if (search == null || search.isBlank()) {
-            products = productRepository.findAllByUser(currentUser);
+            products = tenantQueryService.findAllProducts();
         } else {
-            products = productRepository
-                    .findByUserAndNameContainingIgnoreCaseOrUserAndSkuContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
-                            currentUser,
-                            search,
-                            currentUser,
-                            search,
-                            currentUser,
-                            search
-                    );
+            products = tenantQueryService.searchProducts(search);
         }
 
         return products.stream()
@@ -411,7 +416,7 @@ public class ProductService {
     public ProductResponse getProductById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = productRepository.findByIdAndUser(id, currentUser)
+        Product product = tenantQueryService.findProductById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         return mapToResponse(product);
@@ -420,12 +425,11 @@ public class ProductService {
     public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = productRepository.findByIdAndUser(id, currentUser)
+        Product product = tenantQueryService.findProductById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        if (productRepository.existsByNameIgnoreCaseAndUserAndIdNot(
+        if (tenantQueryService.existsProductByNameExcludingId(
                 request.getName(),
-                currentUser,
                 product.getId()
         )) {
             throw new DuplicateResourceException("Product name already exists");
@@ -434,7 +438,7 @@ public class ProductService {
         String sku = resolveSku(request.getSku(), currentUser);
 
         if (!product.getSku().equals(sku)
-                && productRepository.existsBySkuAndUser(sku, currentUser)) {
+                && tenantQueryService.existsProductBySku(sku)) {
             throw new DuplicateResourceException("Product SKU already exists");
         }
 
@@ -463,7 +467,7 @@ public class ProductService {
     public ProductResponse deactivateProduct(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = productRepository.findByIdAndUser(id, currentUser)
+        Product product = tenantQueryService.findProductById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         product.setActive(false);
@@ -484,7 +488,7 @@ public class ProductService {
     public ProductResponse activateProduct(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = productRepository.findByIdAndUser(id, currentUser)
+        Product product = tenantQueryService.findProductById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         product.setActive(true);

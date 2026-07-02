@@ -24,11 +24,13 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     public CategoryResponse createCategory(CategoryRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        if (categoryRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
+        if (tenantQueryService.existsCategoryByName(request.getName())) {
             throw new DuplicateResourceException("Category name already exists");
         }
 
@@ -39,6 +41,9 @@ public class CategoryService {
                 .systemCategory(false)
                 .user(currentUser)
                 .build();
+
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(category::setOrganization);
 
         Category savedCategory = categoryRepository.save(category);
 
@@ -58,7 +63,7 @@ public class CategoryService {
 
         ensureDefaultCategoryExists(currentUser);
 
-        return categoryRepository.findAllByUser(currentUser)
+        return tenantQueryService.findAllCategories()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -67,7 +72,7 @@ public class CategoryService {
     public CategoryResponse getCategoryById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Category category = categoryRepository.findByIdAndUser(id, currentUser)
+        Category category = tenantQueryService.findCategoryById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         return mapToResponse(category);
@@ -76,7 +81,7 @@ public class CategoryService {
     public CategoryResponse updateCategory(Long id, CategoryRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Category category = categoryRepository.findByIdAndUser(id, currentUser)
+        Category category = tenantQueryService.findCategoryById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         if (Boolean.TRUE.equals(category.getSystemCategory())) {
@@ -84,7 +89,7 @@ public class CategoryService {
         }
 
         if (!category.getName().equalsIgnoreCase(request.getName())
-                && categoryRepository.existsByNameIgnoreCaseAndUser(request.getName(), currentUser)) {
+                && tenantQueryService.existsCategoryByName(request.getName())) {
             throw new DuplicateResourceException("Category name already exists");
         }
 
@@ -107,7 +112,7 @@ public class CategoryService {
     public void deleteCategory(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Category category = categoryRepository.findByIdAndUser(id, currentUser)
+        Category category = tenantQueryService.findCategoryById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         if (Boolean.TRUE.equals(category.getSystemCategory())) {
@@ -126,16 +131,19 @@ public class CategoryService {
     }
 
     public Category getOrCreateDefaultCategory(User user) {
-        return categoryRepository.findByNameIgnoreCaseAndUser(DEFAULT_CATEGORY_NAME, user)
-                .orElseGet(() -> categoryRepository.save(
-                        Category.builder()
-                                .name(DEFAULT_CATEGORY_NAME)
-                                .description("Default category")
-                                .createdAt(LocalDateTime.now())
-                                .systemCategory(true)
-                                .user(user)
-                                .build()
-                ));
+        return tenantQueryService.findCategoryByNameIgnoreCase(user, DEFAULT_CATEGORY_NAME)
+                .orElseGet(() -> {
+                    Category category = Category.builder()
+                            .name(DEFAULT_CATEGORY_NAME)
+                            .description("Default category")
+                            .createdAt(LocalDateTime.now())
+                            .systemCategory(true)
+                            .user(user)
+                            .build();
+                    tenantScopeService.getOrganizationReference(user)
+                            .ifPresent(category::setOrganization);
+                    return categoryRepository.save(category);
+                });
     }
 
     private void ensureDefaultCategoryExists(User user) {

@@ -21,6 +21,8 @@ public class SupplierService {
     private final SupplierRepository supplierRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     public SupplierResponse createSupplier(SupplierRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -39,6 +41,12 @@ public class SupplierService {
                 .user(currentUser)
                 .build();
 
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    supplier.setOrganization(organization);
+                    supplier.setCreatedBy(currentUser);
+                });
+
         Supplier savedSupplier = supplierRepository.save(supplier);
 
         auditLogService.log(
@@ -55,7 +63,7 @@ public class SupplierService {
     public List<SupplierResponse> getAllSuppliers() {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        return supplierRepository.findAllByUserOrderByCreatedAtDesc(currentUser)
+        return tenantQueryService.findAllSuppliers()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -64,7 +72,7 @@ public class SupplierService {
     public SupplierResponse getSupplierById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
+        Supplier supplier = tenantQueryService.findSupplierById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         return mapToResponse(supplier);
@@ -73,7 +81,7 @@ public class SupplierService {
     public SupplierResponse updateSupplier(Long id, SupplierRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
+        Supplier supplier = tenantQueryService.findSupplierById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         supplier.setName(request.getName());
@@ -105,7 +113,7 @@ public class SupplierService {
     public void deleteSupplier(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Supplier supplier = supplierRepository.findByIdAndUser(id, currentUser)
+        Supplier supplier = tenantQueryService.findSupplierById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         auditLogService.log(

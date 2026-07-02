@@ -10,8 +10,15 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
 
     List<StockMovement> findAllByUserOrderByCreatedAtDesc(User user);
 
+    List<StockMovement> findAllByOrganizationIdOrderByCreatedAtDesc(Long organizationId);
+
     List<StockMovement> findByProductIdAndUserOrderByCreatedAtDesc(
             Long productId,
             User user
+    );
+
+    List<StockMovement> findByProductIdAndOrganizationIdOrderByCreatedAtDesc(
+            Long productId,
+            Long organizationId
     );
 }

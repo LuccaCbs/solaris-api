@@ -28,6 +28,8 @@ public class SystemSettingsService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
+    private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
 
     public SystemSettingsResponse getSettings() {
         return mapToResponse(getOrCreateSettings());
@@ -75,17 +77,20 @@ public class SystemSettingsService {
     public SystemSettings getOrCreateSettings() {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        return systemSettingsRepository.findByUser(currentUser)
-                .orElseGet(() -> systemSettingsRepository.save(
-                        SystemSettings.builder()
-                                .globalLowStockThreshold(DEFAULT_LOW_STOCK_THRESHOLD)
-                                .businessTimezone("America/Argentina/Buenos_Aires")
-                                .cashRegisterAutoCloseTime(LocalTime.MIDNIGHT)
-                                .updatedAt(LocalDateTime.now())
-                                .whatsappEnabled(false)
-                                .user(currentUser)
-                                .build()
-                ));
+        return tenantQueryService.findSystemSettings()
+                .orElseGet(() -> {
+                    SystemSettings settings = SystemSettings.builder()
+                            .globalLowStockThreshold(DEFAULT_LOW_STOCK_THRESHOLD)
+                            .businessTimezone("America/Argentina/Buenos_Aires")
+                            .cashRegisterAutoCloseTime(LocalTime.MIDNIGHT)
+                            .updatedAt(LocalDateTime.now())
+                            .whatsappEnabled(false)
+                            .user(currentUser)
+                            .build();
+                    tenantScopeService.getOrganizationReference(currentUser)
+                            .ifPresent(settings::setOrganization);
+                    return systemSettingsRepository.save(settings);
+                });
     }
 
     public boolean hasAdminAccessPasswordConfigured() {
