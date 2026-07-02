@@ -12,6 +12,7 @@ import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import com.luccavergara.solaris.tenant.TenantContext;
+import com.luccavergara.solaris.util.TaxIdNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,13 +41,10 @@ public class FiscalDocumentService {
         Sale sale = tenantQueryService.findSaleById(saleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found"));
 
-        Organization organization = tenantScopeService.resolveOrganization(tenantScopeService.getCurrentUser())
-                .orElseThrow(() -> new IllegalStateException("Organization context is required for invoicing"));
-
-        if (sale.getOrganization() != null
-                && !sale.getOrganization().getId().equals(organization.getId())) {
-            throw new ResourceNotFoundException("Sale not found");
-        }
+        Organization organization = resolveOrganizationForInvoicing(
+                sale,
+                tenantScopeService.getCurrentUser()
+        );
 
         fiscalDocumentRepository.findBySaleId(saleId)
                 .ifPresent(existing -> {
@@ -148,8 +146,14 @@ public class FiscalDocumentService {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
-        if (StringUtils.hasText(request.getCuit())) {
-            organization.setCuit(normalizeCuit(request.getCuit()));
+        if (request.getCuit() != null) {
+            String normalizedCuit = TaxIdNormalizer.normalizeCuit(request.getCuit());
+            if (StringUtils.hasText(normalizedCuit)) {
+                validateCuitFormat(normalizedCuit);
+                organization.setCuit(normalizedCuit);
+            } else {
+                organization.setCuit(null);
+            }
         }
 
         if (StringUtils.hasText(request.getRazonSocial())) {
@@ -177,7 +181,7 @@ public class FiscalDocumentService {
     }
 
     private void validateFiscalConfig(Organization organization) {
-        if (!StringUtils.hasText(organization.getCuit())) {
+        if (!StringUtils.hasText(TaxIdNormalizer.normalizeCuit(organization.getCuit()))) {
             throw new IllegalStateException("Organization CUIT is required for invoicing");
         }
 
@@ -263,7 +267,10 @@ public class FiscalDocumentService {
 
         if (customer != null) {
             customerDocumentType = customer.getDocumentType().name();
-            customerDocumentNumber = customer.getDocumentNumber();
+            customerDocumentNumber = TaxIdNormalizer.normalizeDocumentNumber(
+                    customer.getDocumentType(),
+                    customer.getDocumentNumber()
+            );
             customerRazonSocial = customer.getRazonSocial();
         } else {
             customerDocumentType = DocumentType.DNI.name();
@@ -300,7 +307,7 @@ public class FiscalDocumentService {
         }
 
         return EmitInvoiceCommand.builder()
-                .emitterCuit(normalizeCuit(organization.getCuit()))
+                .emitterCuit(TaxIdNormalizer.normalizeCuit(organization.getCuit()))
                 .emitterRazonSocial(organization.getRazonSocial())
                 .puntoVenta(puntoVenta)
                 .numeroComprobante(numeroComprobante)
@@ -315,12 +322,27 @@ public class FiscalDocumentService {
                 .build();
     }
 
-    private String normalizeCuit(String cuit) {
-        return cuit.replace("-", "").trim();
+    private Organization resolveOrganizationForInvoicing(Sale sale, User user) {
+        Long contextOrgId = tenantScopeService.resolveOrganizationId(user)
+                .orElseThrow(() -> new IllegalStateException("Organization context is required for invoicing"));
+
+        if (sale.getOrganization() != null && !sale.getOrganization().getId().equals(contextOrgId)) {
+            throw new ResourceNotFoundException("Sale not found");
+        }
+
+        return organizationRepository.findById(contextOrgId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+    }
+
+    private void validateCuitFormat(String normalizedCuit) {
+        if (normalizedCuit.length() != 11 || !normalizedCuit.matches("\\d{11}")) {
+            throw new IllegalArgumentException("CUIT must contain 11 digits");
+        }
     }
 
     private void validateOrganizationAccess(Long organizationId) {
-        Long currentOrgId = TenantContext.getOrganizationId();
+        Long currentOrgId = tenantScopeService.resolveOrganizationId(tenantScopeService.getCurrentUser())
+                .orElse(null);
 
         if (currentOrgId == null || !currentOrgId.equals(organizationId)) {
             throw new ResourceNotFoundException("Organization not found");
@@ -329,7 +351,7 @@ public class FiscalDocumentService {
 
     private FiscalConfigResponse mapToFiscalConfigResponse(Organization organization) {
         return FiscalConfigResponse.builder()
-                .cuit(organization.getCuit())
+                .cuit(TaxIdNormalizer.normalizeCuit(organization.getCuit()))
                 .razonSocial(organization.getRazonSocial())
                 .condicionIva(organization.getCondicionIva())
                 .fiscalPuntoVenta(organization.getFiscalPuntoVenta())

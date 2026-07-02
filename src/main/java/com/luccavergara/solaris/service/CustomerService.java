@@ -5,9 +5,11 @@ import com.luccavergara.solaris.dto.CustomerResponse;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 import com.luccavergara.solaris.entity.Customer;
+import com.luccavergara.solaris.entity.DocumentType;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CustomerRepository;
+import com.luccavergara.solaris.util.TaxIdNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,16 +28,25 @@ public class CustomerService {
 
     public CustomerResponse createCustomer(CustomerRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
+        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
+
+        validateUniqueDocument(
+                currentUser,
+                normalizedRequest.documentType(),
+                normalizedRequest.documentNumber(),
+                null
+        );
+
         LocalDateTime now = LocalDateTime.now();
 
         Customer customer = Customer.builder()
-                .documentType(request.getDocumentType())
-                .documentNumber(request.getDocumentNumber())
-                .razonSocial(request.getRazonSocial())
-                .email(request.getEmail())
-                .phone(request.getPhone())
-                .address(request.getAddress())
-                .condicionIva(request.getCondicionIva())
+                .documentType(normalizedRequest.documentType())
+                .documentNumber(normalizedRequest.documentNumber())
+                .razonSocial(normalizedRequest.razonSocial())
+                .email(normalizedRequest.email())
+                .phone(normalizedRequest.phone())
+                .address(normalizedRequest.address())
+                .condicionIva(normalizedRequest.condicionIva())
                 .createdAt(now)
                 .updatedAt(now)
                 .user(currentUser)
@@ -75,16 +86,26 @@ public class CustomerService {
     }
 
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
+
         Customer customer = tenantQueryService.findCustomerById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
 
-        customer.setDocumentType(request.getDocumentType());
-        customer.setDocumentNumber(request.getDocumentNumber());
-        customer.setRazonSocial(request.getRazonSocial());
-        customer.setEmail(request.getEmail());
-        customer.setPhone(request.getPhone());
-        customer.setAddress(request.getAddress());
-        customer.setCondicionIva(request.getCondicionIva());
+        validateUniqueDocument(
+                currentUser,
+                normalizedRequest.documentType(),
+                normalizedRequest.documentNumber(),
+                id
+        );
+
+        customer.setDocumentType(normalizedRequest.documentType());
+        customer.setDocumentNumber(normalizedRequest.documentNumber());
+        customer.setRazonSocial(normalizedRequest.razonSocial());
+        customer.setEmail(normalizedRequest.email());
+        customer.setPhone(normalizedRequest.phone());
+        customer.setAddress(normalizedRequest.address());
+        customer.setCondicionIva(normalizedRequest.condicionIva());
         customer.setUpdatedAt(LocalDateTime.now());
 
         Customer updatedCustomer = customerRepository.save(customer);
@@ -115,6 +136,75 @@ public class CustomerService {
         customerRepository.delete(customer);
     }
 
+    private NormalizedCustomerRequest normalizeRequest(CustomerRequest request) {
+        DocumentType documentType = request.getDocumentType();
+        TaxIdNormalizer.validateDocumentNumber(documentType, request.getDocumentNumber());
+
+        String documentNumber = TaxIdNormalizer.normalizeDocumentNumber(
+                documentType,
+                request.getDocumentNumber()
+        );
+        String phone = TaxIdNormalizer.normalizePhone(request.getPhone());
+        TaxIdNormalizer.validatePhone(phone);
+
+        return new NormalizedCustomerRequest(
+                documentType,
+                documentNumber,
+                request.getRazonSocial().trim(),
+                TaxIdNormalizer.normalizeEmail(request.getEmail()),
+                phone,
+                request.getAddress() != null ? request.getAddress().trim() : null,
+                request.getCondicionIva()
+        );
+    }
+
+    private void validateUniqueDocument(
+            User currentUser,
+            DocumentType documentType,
+            String documentNumber,
+            Long excludeId
+    ) {
+        tenantScopeService.resolveOrganizationId(currentUser)
+                .ifPresentOrElse(
+                        organizationId -> {
+                            boolean exists = excludeId == null
+                                    ? customerRepository.existsByDocumentTypeAndDocumentNumberAndOrganizationId(
+                                    documentType,
+                                    documentNumber,
+                                    organizationId
+                            )
+                                    : customerRepository.existsByDocumentTypeAndDocumentNumberAndOrganizationIdAndIdNot(
+                                    documentType,
+                                    documentNumber,
+                                    organizationId,
+                                    excludeId
+                            );
+
+                            if (exists) {
+                                throw new IllegalArgumentException("A customer with this document already exists");
+                            }
+                        },
+                        () -> {
+                            boolean exists = excludeId == null
+                                    ? customerRepository.existsByDocumentTypeAndDocumentNumberAndUserAndOrganizationIsNull(
+                                    documentType,
+                                    documentNumber,
+                                    currentUser
+                            )
+                                    : customerRepository.existsByDocumentTypeAndDocumentNumberAndUserAndOrganizationIsNullAndIdNot(
+                                    documentType,
+                                    documentNumber,
+                                    currentUser,
+                                    excludeId
+                            );
+
+                            if (exists) {
+                                throw new IllegalArgumentException("A customer with this document already exists");
+                            }
+                        }
+                );
+    }
+
     private CustomerResponse mapToResponse(Customer customer) {
         return CustomerResponse.builder()
                 .id(customer.getId())
@@ -128,5 +218,16 @@ public class CustomerService {
                 .createdAt(customer.getCreatedAt())
                 .updatedAt(customer.getUpdatedAt())
                 .build();
+    }
+
+    private record NormalizedCustomerRequest(
+            DocumentType documentType,
+            String documentNumber,
+            String razonSocial,
+            String email,
+            String phone,
+            String address,
+            com.luccavergara.solaris.entity.CondicionIva condicionIva
+    ) {
     }
 }

@@ -2,14 +2,13 @@ package com.luccavergara.solaris.dto;
 
 import com.luccavergara.solaris.entity.CondicionIva;
 import com.luccavergara.solaris.entity.FiscalProviderType;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class FiscalConfigRequest {
 
-    @Size(max = 13)
+    @Size(max = 20)
     private String cuit;
 
     @Size(max = 255)

@@ -34,7 +34,7 @@ public class JwtService {
     }
 
     public Optional<Long> extractOrganizationId(String token) {
-        return Optional.ofNullable(extractClaim(token, claims -> claims.get(CLAIM_ORG_ID, Long.class)));
+        return extractLongClaim(token, CLAIM_ORG_ID);
     }
 
     public Optional<OrganizationMemberRole> extractOrganizationRole(String token) {
@@ -43,7 +43,20 @@ public class JwtService {
     }
 
     public Optional<Long> extractStoreId(String token) {
-        return Optional.ofNullable(extractClaim(token, claims -> claims.get(CLAIM_STORE_ID, Long.class)));
+        return extractLongClaim(token, CLAIM_STORE_ID);
+    }
+
+    private Optional<Long> extractLongClaim(String token, String claimName) {
+        return Optional.ofNullable(extractClaim(token, claims -> {
+            Object value = claims.get(claimName);
+            if (value instanceof Number number) {
+                return number.longValue();
+            }
+            if (value instanceof String string && !string.isBlank()) {
+                return Long.parseLong(string.trim());
+            }
+            return null;
+        }));
     }
 
     public String generateToken(UserDetails userDetails) {
