@@ -2,6 +2,7 @@ package com.luccavergara.solaris.service;
 
 import com.luccavergara.solaris.dto.CreateStoreRequest;
 import com.luccavergara.solaris.dto.StoreResponse;
+import com.luccavergara.solaris.dto.UpdateStoreRequest;
 import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.entity.Store;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
@@ -45,6 +46,29 @@ public class StoreService {
         );
 
         return mapToResponse(store);
+    }
+
+    @Transactional
+    public StoreResponse updateStore(Long organizationId, Long storeId, UpdateStoreRequest request) {
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+
+        Store store = storeRepository.findByIdAndOrganizationId(storeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+        String normalizedName = request.getName().trim();
+
+        storeRepository.findByOrganizationAndName(organization, normalizedName)
+                .filter(existing -> !existing.getId().equals(storeId))
+                .ifPresent(existing -> {
+                    throw new DuplicateResourceException("A store with this name already exists");
+                });
+
+        store.setName(normalizedName);
+        store.setAddress(trimToNull(request.getAddress()));
+        store.setAfipPuntoVenta(request.getAfipPuntoVenta());
+
+        return mapToResponse(storeRepository.save(store));
     }
 
     private StoreResponse mapToResponse(Store store) {

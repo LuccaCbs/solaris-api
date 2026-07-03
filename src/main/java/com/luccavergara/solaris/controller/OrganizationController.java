@@ -3,6 +3,7 @@ package com.luccavergara.solaris.controller;
 import com.luccavergara.solaris.dto.*;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
+import com.luccavergara.solaris.service.OrganizationService;
 import com.luccavergara.solaris.service.StoreService;
 import com.luccavergara.solaris.service.SubscriptionService;
 import jakarta.validation.Valid;
@@ -22,6 +23,42 @@ public class OrganizationController {
     private final FiscalDocumentService fiscalDocumentService;
     private final SubscriptionService subscriptionService;
     private final StoreService storeService;
+    private final OrganizationService organizationService;
+
+    @GetMapping("/{orgId}")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationResponse getOrganization(@PathVariable Long orgId) {
+        return organizationService.getOrganization(orgId);
+    }
+
+    @PatchMapping("/{orgId}")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationResponse updateOrganization(
+            @PathVariable Long orgId,
+            @Valid @RequestBody UpdateOrganizationRequest request
+    ) {
+        return organizationService.updateOrganization(orgId, request);
+    }
+
+    @PatchMapping("/{orgId}/members/{memberId}")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public void updateMemberRole(
+            @PathVariable Long orgId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody UpdateOrganizationMemberRoleRequest request
+    ) {
+        organizationService.updateMemberRole(orgId, memberId, request);
+    }
+
+    @PatchMapping("/{orgId}/stores/{storeId}")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public StoreResponse updateStore(
+            @PathVariable Long orgId,
+            @PathVariable Long storeId,
+            @Valid @RequestBody UpdateStoreRequest request
+    ) {
+        return storeService.updateStore(orgId, storeId, request);
+    }
 
     @PostMapping("/{orgId}/invites")
     @ResponseStatus(HttpStatus.CREATED)

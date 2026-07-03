@@ -39,6 +39,8 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
 
     Optional<OrganizationMember> findByUserAndOrganizationId(User user, Long organizationId);
 
+    Optional<OrganizationMember> findByIdAndOrganizationId(Long id, Long organizationId);
+
     @Query("""
             SELECT CASE WHEN COUNT(om) > 0 THEN true ELSE false END
             FROM OrganizationMember om

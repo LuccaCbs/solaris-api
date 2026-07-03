@@ -93,7 +93,7 @@ public class OrganizationInviteService {
         String inviteLink = frontendUrl + "/accept-invite?token=" + token;
         emailService.sendOrganizationInvite(
                 normalizedEmail,
-                organization.getRazonSocial(),
+                resolveOrganizationDisplayName(organization),
                 request.getRole().name(),
                 inviteLink
         );
@@ -352,5 +352,13 @@ public class OrganizationInviteService {
                 .expiresAt(invite.getExpiresAt())
                 .pendingInvite(true)
                 .build();
+    }
+
+    private String resolveOrganizationDisplayName(Organization organization) {
+        if (organization.getDisplayName() != null && !organization.getDisplayName().isBlank()) {
+            return organization.getDisplayName();
+        }
+
+        return organization.getRazonSocial();
     }
 }

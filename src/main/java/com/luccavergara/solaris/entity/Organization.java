@@ -24,6 +24,9 @@ public class Organization {
     @Column(nullable = false)
     private String razonSocial;
 
+    @Column(name = "display_name")
+    private String displayName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CondicionIva condicionIva;

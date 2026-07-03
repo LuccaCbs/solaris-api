@@ -41,6 +41,7 @@ public class OrganizationMigrationService {
             Organization organization = organizationRepository.save(
                     Organization.builder()
                             .razonSocial(buildDefaultRazonSocial(user))
+                            .displayName(buildDefaultRazonSocial(user))
                             .condicionIva(CondicionIva.MONOTRIBUTO)
                             .timezone(DEFAULT_TIMEZONE)
                             .build()
