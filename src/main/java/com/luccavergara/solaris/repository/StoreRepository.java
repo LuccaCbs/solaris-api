@@ -16,4 +16,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     Optional<Store> findByIdAndOrganizationId(Long id, Long organizationId);
 
     List<Store> findAllByOrganizationId(Long organizationId);
+
+    long countByOrganizationIdAndActiveTrue(Long organizationId);
 }

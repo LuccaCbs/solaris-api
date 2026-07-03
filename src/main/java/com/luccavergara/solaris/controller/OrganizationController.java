@@ -3,6 +3,8 @@ package com.luccavergara.solaris.controller;
 import com.luccavergara.solaris.dto.*;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
+import com.luccavergara.solaris.service.StoreService;
+import com.luccavergara.solaris.service.SubscriptionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,8 @@ public class OrganizationController {
 
     private final OrganizationInviteService organizationInviteService;
     private final FiscalDocumentService fiscalDocumentService;
+    private final SubscriptionService subscriptionService;
+    private final StoreService storeService;
 
     @PostMapping("/{orgId}/invites")
     @ResponseStatus(HttpStatus.CREATED)
@@ -39,6 +43,40 @@ public class OrganizationController {
     @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public List<StoreResponse> listStores(@PathVariable Long orgId) {
         return organizationInviteService.listStores(orgId);
+    }
+
+    @PostMapping("/{orgId}/stores")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public StoreResponse createStore(
+            @PathVariable Long orgId,
+            @Valid @RequestBody CreateStoreRequest request
+    ) {
+        return storeService.createStore(orgId, request);
+    }
+
+    @GetMapping("/{orgId}/subscription")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationSubscriptionResponse getSubscription(@PathVariable Long orgId) {
+        return subscriptionService.getSubscription(orgId);
+    }
+
+    @PostMapping("/{orgId}/subscription/store-addon/checkout")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).OWNER)")
+    public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
+            @PathVariable Long orgId,
+            @Valid @RequestBody StoreAddonCheckoutRequest request
+    ) {
+        return subscriptionService.initiateStoreAddonCheckout(orgId, request);
+    }
+
+    @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).OWNER)")
+    public OrganizationSubscriptionResponse purchaseStoreAddonMock(
+            @PathVariable Long orgId,
+            @Valid @RequestBody StoreAddonCheckoutRequest request
+    ) {
+        return subscriptionService.purchaseStoreAddonMock(orgId, request);
     }
 
     @DeleteMapping("/{orgId}/invites/{inviteId}")

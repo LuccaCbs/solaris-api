@@ -25,6 +25,7 @@ public class OrganizationMigrationService {
     private final StoreRepository storeRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
     private final EntityManager entityManager;
+    private final SubscriptionService subscriptionService;
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
@@ -52,6 +53,8 @@ public class OrganizationMigrationService {
                             .active(true)
                             .build()
             );
+
+            subscriptionService.ensureSubscription(organization);
 
             organizationMemberRepository.save(
                     OrganizationMember.builder()

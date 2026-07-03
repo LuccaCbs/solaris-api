@@ -129,6 +129,8 @@ public class OrganizationInviteService {
                 .map(store -> StoreResponse.builder()
                         .id(store.getId())
                         .name(store.getName())
+                        .address(store.getAddress())
+                        .afipPuntoVenta(store.getAfipPuntoVenta())
                         .active(store.getActive())
                         .build())
                 .toList();
