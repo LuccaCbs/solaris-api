@@ -69,4 +69,8 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private Boolean emailVerified;
+
+    @Column(name = "platform_operator", nullable = false)
+    @Builder.Default
+    private Boolean platformOperator = false;
 }

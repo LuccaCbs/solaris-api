@@ -5,6 +5,7 @@ import com.luccavergara.solaris.service.EntitlementService;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
 import com.luccavergara.solaris.service.OrganizationService;
+import com.luccavergara.solaris.service.PromoCodeService;
 import com.luccavergara.solaris.service.StoreService;
 import com.luccavergara.solaris.service.SubscriptionService;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ public class OrganizationController {
     private final EntitlementService entitlementService;
     private final FiscalDocumentService fiscalDocumentService;
     private final SubscriptionService subscriptionService;
+    private final PromoCodeService promoCodeService;
     private final StoreService storeService;
     private final OrganizationService organizationService;
 
@@ -98,6 +100,15 @@ public class OrganizationController {
     @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
     public OrganizationEntitlementsResponse getEntitlements(@PathVariable Long orgId) {
         return entitlementService.getEntitlements(orgId);
+    }
+
+    @PostMapping("/{orgId}/promo-codes/redeem")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public RedeemPromoCodeResponse redeemPromoCode(
+            @PathVariable Long orgId,
+            @Valid @RequestBody RedeemPromoCodeRequest request
+    ) {
+        return promoCodeService.redeemPromoCode(orgId, request);
     }
 
     @GetMapping("/{orgId}/subscription")

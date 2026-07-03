@@ -1,5 +1,8 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.billing.BillingPricingService;
+import com.luccavergara.solaris.billing.PaymentProvider;
+import com.luccavergara.solaris.billing.PaymentProviderFactory;
 import com.luccavergara.solaris.dto.OrganizationEntitlementsResponse;
 import com.luccavergara.solaris.dto.OrganizationSubscriptionResponse;
 import com.luccavergara.solaris.dto.StoreAddonCheckoutRequest;
@@ -11,13 +14,11 @@ import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.OrganizationSubscriptionRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
@@ -28,7 +29,8 @@ public class SubscriptionService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationSubscriptionRepository subscriptionRepository;
     private final StoreRepository storeRepository;
-    private final MercadoPagoBillingService mercadoPagoBillingService;
+    private final PaymentProviderFactory paymentProviderFactory;
+    private final BillingPricingService billingPricingService;
     private final OrganizationMembershipService organizationMembershipService;
     private final AuthenticatedUserService authenticatedUserService;
     private final EntitlementService entitlementService;
@@ -36,17 +38,12 @@ public class SubscriptionService {
     @Value("${application.billing.mock-enabled:true}")
     private boolean billingMockEnabled;
 
-    @Value("${application.billing.store-addon-price-ars:15000}")
-    private BigDecimal storeAddonPriceArs;
-
-    @Value("${application.billing.provider:MERCADOPAGO}")
-    private String billingProviderName;
-
     public SubscriptionService(
             OrganizationRepository organizationRepository,
             OrganizationSubscriptionRepository subscriptionRepository,
             StoreRepository storeRepository,
-            @Lazy MercadoPagoBillingService mercadoPagoBillingService,
+            PaymentProviderFactory paymentProviderFactory,
+            BillingPricingService billingPricingService,
             OrganizationMembershipService organizationMembershipService,
             AuthenticatedUserService authenticatedUserService,
             EntitlementService entitlementService
@@ -54,7 +51,8 @@ public class SubscriptionService {
         this.organizationRepository = organizationRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.storeRepository = storeRepository;
-        this.mercadoPagoBillingService = mercadoPagoBillingService;
+        this.paymentProviderFactory = paymentProviderFactory;
+        this.billingPricingService = billingPricingService;
         this.organizationMembershipService = organizationMembershipService;
         this.authenticatedUserService = authenticatedUserService;
         this.entitlementService = entitlementService;
@@ -118,26 +116,46 @@ public class SubscriptionService {
         ensureSubscription(organization);
 
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
+        PaymentProvider paymentProvider = paymentProviderFactory.resolve(organization);
+        var price = billingPricingService.resolveStoreAddonPrice(organization);
 
-        if (mercadoPagoBillingService.isConfigured()) {
-            return mercadoPagoBillingService.createStoreAddonCheckout(organizationId, quantity);
+        if (paymentProvider.isConfigured()) {
+            return paymentProvider.createStoreAddonCheckout(organization, quantity);
         }
-
-        BillingProvider provider = resolveBillingProvider();
 
         return StoreAddonCheckoutResponse.builder()
                 .status("PAYMENT_REQUIRED")
-                .message("Mercado Pago is not configured. Set MERCADOPAGO_ACCESS_TOKEN to enable card payments.")
+                .message(paymentProvider.notConfiguredMessage())
                 .checkoutUrl(null)
-                .provider(provider)
+                .provider(paymentProvider.providerType())
+                .providerDisplayName(paymentProvider.displayName())
+                .supportedPaymentMethods(paymentProvider.supportedPaymentMethods())
                 .quantity(quantity)
-                .unitPriceArs(storeAddonPriceArs)
+                .currency(price.currency())
+                .unitPrice(price.unitAmount())
+                .unitPriceArs(price.isArs() ? price.unitAmount() : null)
                 .mockPurchaseAvailable(billingMockEnabled)
                 .build();
     }
 
     @Transactional
     public OrganizationSubscriptionResponse applyStoreAddonPurchase(Long organizationId, int quantity) {
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+
+        return applyStoreAddonPurchase(
+                organizationId,
+                quantity,
+                paymentProviderFactory.resolveProviderType(organization)
+        );
+    }
+
+    @Transactional
+    public OrganizationSubscriptionResponse applyStoreAddonPurchase(
+            Long organizationId,
+            int quantity,
+            BillingProvider billingProvider
+    ) {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
@@ -148,7 +166,7 @@ public class SubscriptionService {
         }
 
         subscription.setExtraStoresPurchased(subscription.getExtraStoresPurchased() + quantity);
-        subscription.setBillingProvider(BillingProvider.MERCADOPAGO);
+        subscription.setBillingProvider(billingProvider);
         subscription.setUpdatedAt(LocalDateTime.now());
 
         OrganizationSubscription saved = subscriptionRepository.save(subscription);
@@ -211,6 +229,9 @@ public class SubscriptionService {
                 subscription.getOrganization().getId()
         );
 
+        Organization organization = subscription.getOrganization();
+        PaymentProvider paymentProvider = paymentProviderFactory.resolve(organization);
+
         return OrganizationSubscriptionResponse.builder()
                 .planCode(subscription.getPlanCode())
                 .planDisplayName(entitlementService.resolvePlanDisplayName(subscription.getPlanCode()))
@@ -221,6 +242,11 @@ public class SubscriptionService {
                 .activeStoreCount(activeStoreCount)
                 .canAddStore(canAddStore)
                 .billingProvider(subscription.getBillingProvider())
+                .preferredBillingProvider(paymentProvider.providerType())
+                .paymentProviderDisplayName(paymentProvider.displayName())
+                .countryCode(organization.getCountryCode())
+                .billingJurisdiction(organization.getBillingJurisdiction())
+                .defaultCurrency(organization.getDefaultCurrency())
                 .trialEndsAt(subscription.getTrialEndsAt())
                 .currentPeriodStart(subscription.getCurrentPeriodStart())
                 .currentPeriodEnd(subscription.getCurrentPeriodEnd())
@@ -229,14 +255,6 @@ public class SubscriptionService {
                 .addonModules(entitlements.getAddonModules())
                 .promoModules(entitlements.getPromoModules())
                 .build();
-    }
-
-    private BillingProvider resolveBillingProvider() {
-        try {
-            return BillingProvider.valueOf(billingProviderName.toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            return BillingProvider.MERCADOPAGO;
-        }
     }
 
     private void assertCanManageOrganizationBilling(Long organizationId) {

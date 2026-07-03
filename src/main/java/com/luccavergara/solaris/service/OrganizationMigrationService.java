@@ -44,6 +44,10 @@ public class OrganizationMigrationService {
                             .displayName(buildDefaultRazonSocial(user))
                             .condicionIva(CondicionIva.MONOTRIBUTO)
                             .timezone(DEFAULT_TIMEZONE)
+                            .countryCode(CountryCode.AR)
+                            .billingJurisdiction(BillingJurisdiction.AR)
+                            .fiscalJurisdiction(FiscalJurisdiction.AR_AFIP)
+                            .defaultCurrency("ARS")
                             .build()
             );
 

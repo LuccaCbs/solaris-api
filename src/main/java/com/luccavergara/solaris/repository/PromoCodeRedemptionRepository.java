@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface PromoCodeRedemptionRepository extends JpaRepository<PromoCodeRedemption, Long> {
 
@@ -23,5 +24,14 @@ public interface PromoCodeRedemptionRepository extends JpaRepository<PromoCodeRe
             @Param("organizationId") Long organizationId,
             @Param("status") PromoRedemptionStatus status,
             @Param("now") LocalDateTime now
+    );
+
+    boolean existsByPromoCodeIdAndOrganizationId(Long promoCodeId, Long organizationId);
+
+    List<PromoCodeRedemption> findAllByPromoCodeIdOrderByCreatedAtDesc(Long promoCodeId);
+
+    List<PromoCodeRedemption> findAllByPromoCodeIdAndStatus(
+            Long promoCodeId,
+            PromoRedemptionStatus status
     );
 }

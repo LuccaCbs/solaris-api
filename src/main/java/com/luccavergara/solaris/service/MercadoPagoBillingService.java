@@ -137,7 +137,8 @@ public class MercadoPagoBillingService {
 
         subscriptionService.applyStoreAddonPurchase(
                 checkout.getOrganization().getId(),
-                checkout.getQuantity()
+                checkout.getQuantity(),
+                BillingProvider.MERCADOPAGO
         );
     }
 

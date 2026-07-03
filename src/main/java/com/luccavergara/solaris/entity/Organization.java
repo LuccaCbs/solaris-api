@@ -45,6 +45,25 @@ public class Organization {
     @Column(name = "fiscal_punto_venta")
     private Integer fiscalPuntoVenta;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "country_code", nullable = false, length = 2)
+    @Builder.Default
+    private CountryCode countryCode = CountryCode.AR;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_jurisdiction", nullable = false, length = 10)
+    @Builder.Default
+    private BillingJurisdiction billingJurisdiction = BillingJurisdiction.AR;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fiscal_jurisdiction", nullable = false, length = 30)
+    @Builder.Default
+    private FiscalJurisdiction fiscalJurisdiction = FiscalJurisdiction.AR_AFIP;
+
+    @Column(name = "default_currency", nullable = false, length = 3)
+    @Builder.Default
+    private String defaultCurrency = "ARS";
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 

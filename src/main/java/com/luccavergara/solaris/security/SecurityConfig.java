@@ -37,6 +37,7 @@ public class SecurityConfig {
                                 "/api/v1/organizations/invites/accept",
                                 "/api/v1/organizations/invites/preview",
                                 "/api/v1/billing/mercadopago/webhook",
+                                "/api/v1/billing/stripe/webhook",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
