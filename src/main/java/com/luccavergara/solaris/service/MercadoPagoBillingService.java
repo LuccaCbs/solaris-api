@@ -6,9 +6,9 @@ import com.luccavergara.solaris.entity.*;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.BillingCheckoutRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -17,7 +17,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class MercadoPagoBillingService {
 
@@ -27,6 +26,18 @@ public class MercadoPagoBillingService {
     private final BillingCheckoutRepository billingCheckoutRepository;
     private final MercadoPagoClient mercadoPagoClient;
     private final SubscriptionService subscriptionService;
+
+    public MercadoPagoBillingService(
+            OrganizationRepository organizationRepository,
+            BillingCheckoutRepository billingCheckoutRepository,
+            MercadoPagoClient mercadoPagoClient,
+            @Lazy SubscriptionService subscriptionService
+    ) {
+        this.organizationRepository = organizationRepository;
+        this.billingCheckoutRepository = billingCheckoutRepository;
+        this.mercadoPagoClient = mercadoPagoClient;
+        this.subscriptionService = subscriptionService;
+    }
 
     @Value("${application.frontend.url:http://localhost:5173}")
     private String frontendUrl;

@@ -14,6 +14,7 @@ import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.OrganizationSubscriptionRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +43,7 @@ public class SubscriptionService {
             OrganizationRepository organizationRepository,
             OrganizationSubscriptionRepository subscriptionRepository,
             StoreRepository storeRepository,
-            PaymentProviderFactory paymentProviderFactory,
+            @Lazy PaymentProviderFactory paymentProviderFactory,
             BillingPricingService billingPricingService,
             OrganizationMembershipService organizationMembershipService,
             AuthenticatedUserService authenticatedUserService,
