@@ -19,4 +19,6 @@ public class StoreAddonCheckoutResponse {
     private Integer quantity;
     private BigDecimal unitPriceArs;
     private Boolean mockPurchaseAvailable;
+    private Long checkoutId;
+    private String preferenceId;
 }
