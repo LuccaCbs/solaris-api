@@ -9,6 +9,7 @@ import lombok.*;
 @Builder
 public class DashboardSupplierOrdersResponse {
 
+    private Integer draft;
     private Integer sent;
     private Integer completed;
     private Integer cancelled;

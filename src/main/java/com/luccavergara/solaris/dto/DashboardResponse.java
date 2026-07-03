@@ -20,4 +20,14 @@ public class DashboardResponse {
     private DashboardSupplierOrdersResponse supplierOrders;
 
     private List<DashboardMonthlySalesResponse> monthlySales;
+
+    private DashboardCashRegisterSummary cashRegister;
+
+    private DashboardAlertsSummary alerts;
+
+    private DashboardSalesComparison comparison;
+
+    private List<DashboardTopProductItem> topProducts;
+
+    private List<DashboardRecentSaleItem> recentSales;
 }

@@ -25,6 +25,7 @@ public class TenantQueryService {
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
     private final AuditLogRepository auditLogRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
+    private final FiscalDocumentRepository fiscalDocumentRepository;
 
     public Optional<Product> findProductById(Long id) {
         User user = tenantScopeService.getCurrentUser();
@@ -219,6 +220,13 @@ public class TenantQueryService {
         return tenantScopeService.resolveOrganizationId(user)
                 .map(supplierOrderRepository::findAllByOrganizationId)
                 .orElseGet(() -> supplierOrderRepository.findAllByUser(user));
+    }
+
+    public List<FiscalDocument> findAllFiscalDocuments() {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(fiscalDocumentRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                .orElseGet(List::of);
     }
 
     public Optional<SupplierOrder> findSupplierOrderById(Long id) {
