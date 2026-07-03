@@ -58,6 +58,14 @@ public class OrganizationMembershipService {
             storeId = membership.getStore().getId();
         }
 
+        if (storeId == null) {
+            storeId = storeRepository.findAllByOrganizationId(membership.getOrganization().getId()).stream()
+                    .filter(store -> Boolean.TRUE.equals(store.getActive()))
+                    .map(Store::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+
         if (storeId != null) {
             claims.put("storeId", storeId);
         }

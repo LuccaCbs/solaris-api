@@ -12,6 +12,7 @@ import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CashRegisterReopenLogRepository;
 import com.luccavergara.solaris.repository.CashRegisterSessionRepository;
+import com.luccavergara.solaris.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class CashRegisterService {
 
     private final CashRegisterSessionRepository cashRegisterSessionRepository;
     private final CashRegisterReopenLogRepository cashRegisterReopenLogRepository;
+    private final SaleRepository saleRepository;
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
@@ -91,6 +93,13 @@ public class CashRegisterService {
                     session.setOrganization(organization);
                     session.setCreatedBy(currentUser);
                 });
+
+        tenantScopeService.getStoreReference(currentUser)
+                .ifPresent(session::setStore);
+
+        if (session.getOrganization() != null && session.getStore() == null) {
+            throw new IllegalStateException("No store assigned for cash register");
+        }
 
         CashRegisterSession savedSession = cashRegisterSessionRepository.save(session);
 
@@ -222,7 +231,25 @@ public class CashRegisterService {
                 continue;
             }
 
-            tenantQueryService.findOpenCashRegisterSession(settings.getUser())
+            if (settings.getOrganization() != null) {
+                List<CashRegisterSession> openSessions = cashRegisterSessionRepository
+                        .findAllByStatusAndOrganizationId(
+                                CashRegisterStatus.OPEN,
+                                settings.getOrganization().getId()
+                        );
+
+                for (CashRegisterSession session : openSessions) {
+                    closeSession(session, SYSTEM_AUTO_CLOSE);
+                    cashRegisterSessionRepository.save(session);
+                }
+
+                continue;
+            }
+
+            cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
+                            CashRegisterStatus.OPEN,
+                            settings.getUser()
+                    )
                     .ifPresent(session -> {
                         closeSession(session, SYSTEM_AUTO_CLOSE);
                         cashRegisterSessionRepository.save(session);
@@ -249,13 +276,27 @@ public class CashRegisterService {
             CashRegisterSession session,
             String closedBy
     ) {
-        List<Sale> sessionSales = tenantQueryService.findSalesByCashRegisterSessionId(session.getId());
+        List<Sale> sessionSales = resolveSessionSales(session);
 
         applySalesTotals(session, sessionSales);
 
         session.setClosedAt(LocalDateTime.now());
         session.setClosedBy(closedBy);
         session.setStatus(CashRegisterStatus.CLOSED);
+    }
+
+    private List<Sale> resolveSessionSales(CashRegisterSession session) {
+        if (session.getOrganization() != null) {
+            return saleRepository.findAllByCashRegisterSessionIdAndOrganizationId(
+                    session.getId(),
+                    session.getOrganization().getId()
+            );
+        }
+
+        return saleRepository.findAllByCashRegisterSessionIdAndUser(
+                session.getId(),
+                session.getUser()
+        );
     }
 
     private void applySalesTotals(
@@ -313,6 +354,7 @@ public class CashRegisterService {
     private CashRegisterSessionResponse mapToResponse(CashRegisterSession session) {
         return CashRegisterSessionResponse.builder()
                 .id(session.getId())
+                .storeId(session.getStore() != null ? session.getStore().getId() : null)
                 .openedAt(session.getOpenedAt())
                 .closedAt(session.getClosedAt())
                 .openedBy(session.getOpenedBy())

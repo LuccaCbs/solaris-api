@@ -80,4 +80,8 @@ public class CashRegisterSession {
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id")
+    private Store store;
+
 }

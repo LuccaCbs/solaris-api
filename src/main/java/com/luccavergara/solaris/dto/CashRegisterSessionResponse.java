@@ -25,6 +25,8 @@ public class CashRegisterSessionResponse {
 
     private BigDecimal closingAmount;
 
+    private Long storeId;
+
     private Integer cashCount;
     private BigDecimal cashAmount;
 

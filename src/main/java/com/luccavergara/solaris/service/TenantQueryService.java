@@ -251,39 +251,42 @@ public class TenantQueryService {
 
     public Optional<CashRegisterSession> findOpenCashRegisterSession() {
         User user = tenantScopeService.getCurrentUser();
-        return tenantScopeService.resolveOrganizationId(user)
-                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdOrderByOpenedAtDesc(
-                        CashRegisterStatus.OPEN,
-                        orgId
-                ))
-                .or(() -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
+        return resolveScopedCashRegisterQuery(user,
+                () -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
                         CashRegisterStatus.OPEN,
                         user
+                ),
+                (orgId, storeId) -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdAndStoreIdOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        orgId,
+                        storeId
                 ));
     }
 
     public Optional<CashRegisterSession> findOpenCashRegisterSession(User user) {
-        return tenantScopeService.resolveOrganizationId(user)
-                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdOrderByOpenedAtDesc(
-                        CashRegisterStatus.OPEN,
-                        orgId
-                ))
-                .or(() -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
+        return resolveScopedCashRegisterQuery(user,
+                () -> cashRegisterSessionRepository.findFirstByStatusAndUserOrderByOpenedAtDesc(
                         CashRegisterStatus.OPEN,
                         user
+                ),
+                (orgId, storeId) -> cashRegisterSessionRepository.findFirstByStatusAndOrganizationIdAndStoreIdOrderByOpenedAtDesc(
+                        CashRegisterStatus.OPEN,
+                        orgId,
+                        storeId
                 ));
     }
 
     public Optional<CashRegisterSession> findCashRegisterSessionForDay(LocalDateTime start, LocalDateTime end) {
         User user = tenantScopeService.getCurrentUser();
-        return tenantScopeService.resolveOrganizationId(user)
-                .flatMap(orgId -> cashRegisterSessionRepository.findFirstByOrganizationIdAndOpenedAtBetweenOrderByOpenedAtDesc(
-                        orgId,
+        return resolveScopedCashRegisterQuery(user,
+                () -> cashRegisterSessionRepository.findFirstByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
+                        user,
                         start,
                         end
-                ))
-                .or(() -> cashRegisterSessionRepository.findFirstByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
-                        user,
+                ),
+                (orgId, storeId) -> cashRegisterSessionRepository.findFirstByOrganizationIdAndStoreIdAndOpenedAtBetweenOrderByOpenedAtDesc(
+                        orgId,
+                        storeId,
                         start,
                         end
                 ));
@@ -291,9 +294,29 @@ public class TenantQueryService {
 
     public Optional<CashRegisterSession> findCashRegisterSessionById(Long id) {
         User user = tenantScopeService.getCurrentUser();
-        return tenantScopeService.resolveOrganizationId(user)
-                .flatMap(orgId -> cashRegisterSessionRepository.findByIdAndOrganizationId(id, orgId))
-                .or(() -> cashRegisterSessionRepository.findByIdAndUser(id, user));
+        return resolveScopedCashRegisterQuery(user,
+                () -> cashRegisterSessionRepository.findByIdAndUser(id, user),
+                (orgId, storeId) -> cashRegisterSessionRepository.findByIdAndOrganizationIdAndStoreId(
+                        id,
+                        orgId,
+                        storeId
+                ));
+    }
+
+    private Optional<CashRegisterSession> resolveScopedCashRegisterQuery(
+            User user,
+            java.util.function.Supplier<Optional<CashRegisterSession>> soloUserQuery,
+            java.util.function.BiFunction<Long, Long, Optional<CashRegisterSession>> organizationStoreQuery
+    ) {
+        Optional<Long> organizationId = tenantScopeService.resolveOrganizationId(user);
+        if (organizationId.isEmpty()) {
+            return soloUserQuery.get();
+        }
+
+        Long storeId = tenantScopeService.resolveStoreId(user)
+                .orElseThrow(() -> new IllegalStateException("No store assigned for cash register"));
+
+        return organizationStoreQuery.apply(organizationId.get(), storeId);
     }
 
     public List<AuditLog> findAuditLogs() {

@@ -4,9 +4,11 @@ import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.entity.OrganizationMember;
 import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.entity.OrganizationMemberStatus;
+import com.luccavergara.solaris.entity.Store;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.OrganizationMemberRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
+import com.luccavergara.solaris.repository.StoreRepository;
 import com.luccavergara.solaris.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ public class TenantScopeService {
 
     private final OrganizationMemberRepository organizationMemberRepository;
     private final OrganizationRepository organizationRepository;
+    private final StoreRepository storeRepository;
     private final AuthenticatedUserService authenticatedUserService;
 
     public User getCurrentUser() {
@@ -64,6 +67,39 @@ public class TenantScopeService {
 
     public Optional<Organization> getOrganizationReference(User user) {
         return resolveOrganization(user);
+    }
+
+    public Optional<Long> resolveStoreId(User user) {
+        Long fromContext = TenantContext.getStoreId();
+        if (fromContext != null) {
+            return Optional.of(fromContext);
+        }
+
+        Optional<Long> organizationId = resolveOrganizationId(user);
+        if (organizationId.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Optional<Long> fromMembership = findActiveMembership(user, organizationId.get())
+                .map(OrganizationMember::getStore)
+                .map(Store::getId);
+
+        if (fromMembership.isPresent()) {
+            return fromMembership;
+        }
+
+        return resolveDefaultStoreId(organizationId.get());
+    }
+
+    public Optional<Store> getStoreReference(User user) {
+        return resolveStoreId(user).flatMap(storeRepository::findById);
+    }
+
+    public Optional<Long> resolveDefaultStoreId(Long organizationId) {
+        return storeRepository.findAllByOrganizationId(organizationId).stream()
+                .filter(store -> Boolean.TRUE.equals(store.getActive()))
+                .map(Store::getId)
+                .findFirst();
     }
 
     public List<Long> resolveOrganizationMemberUserIds(Long organizationId) {

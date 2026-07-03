@@ -108,7 +108,7 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse purchaseStoreAddonMock(
             @PathVariable Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
