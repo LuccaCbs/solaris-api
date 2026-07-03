@@ -443,6 +443,10 @@ public class ProductService {
         Product product = tenantQueryService.findProductByBarcode(barcode.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
+        if (Boolean.FALSE.equals(product.getActive())) {
+            throw new ResourceNotFoundException("Product not found");
+        }
+
         return mapToResponse(product);
     }
 
