@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.dto;
 
 import com.luccavergara.solaris.entity.ProductIvaRate;
+import com.luccavergara.solaris.entity.BarcodeFormat;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -16,7 +17,8 @@ public class ProductResponse {
     private Long id;
     private String name;
     private String description;
-    private String sku;
+    private String barcode;
+    private BarcodeFormat barcodeFormat;
     private BigDecimal price;
     private Integer stockQuantity;
     private LocalDateTime createdAt;

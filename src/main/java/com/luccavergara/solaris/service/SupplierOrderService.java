@@ -323,7 +323,7 @@ public class SupplierOrderService {
                 .id(item.getId())
                 .productId(item.getProduct().getId())
                 .productName(item.getProduct().getName())
-                .productSku(item.getProduct().getSku())
+                .productBarcode(item.getProduct().getBarcode())
                 .quantity(item.getQuantity())
                 .build();
     }

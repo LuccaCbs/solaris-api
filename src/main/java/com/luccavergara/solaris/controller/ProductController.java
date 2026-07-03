@@ -59,6 +59,13 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllProducts(search, active));
     }
 
+    @GetMapping("/by-barcode/{barcode}")
+    public ResponseEntity<ProductResponse> getProductByBarcode(
+            @PathVariable String barcode
+    ) {
+        return ResponseEntity.ok(productService.getProductByBarcode(barcode));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getProductById(
             @PathVariable Long id

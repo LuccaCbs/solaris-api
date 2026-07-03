@@ -47,7 +47,7 @@ public class TenantQueryService {
         if (organizationId.isPresent()) {
             Long orgId = organizationId.get();
             return productRepository
-                    .findByOrganizationIdAndNameContainingIgnoreCaseOrOrganizationIdAndSkuContainingIgnoreCaseOrOrganizationIdAndDescriptionContainingIgnoreCase(
+                    .findByOrganizationIdAndNameContainingIgnoreCaseOrOrganizationIdAndBarcodeContainingIgnoreCaseOrOrganizationIdAndDescriptionContainingIgnoreCase(
                             orgId,
                             search,
                             orgId,
@@ -58,7 +58,7 @@ public class TenantQueryService {
         }
 
         return productRepository
-                .findByUserAndNameContainingIgnoreCaseOrUserAndSkuContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
+                .findByUserAndNameContainingIgnoreCaseOrUserAndBarcodeContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
                         user,
                         search,
                         user,
@@ -68,18 +68,25 @@ public class TenantQueryService {
                 );
     }
 
-    public List<Product> findProductsBySkuPrefix(String prefix) {
+    public Optional<Product> findProductByBarcode(String barcode) {
         User user = tenantScopeService.getCurrentUser();
         return tenantScopeService.resolveOrganizationId(user)
-                .map(orgId -> productRepository.findByOrganizationIdAndSkuStartingWith(orgId, prefix))
-                .orElseGet(() -> productRepository.findByUserAndSkuStartingWith(user, prefix));
+                .flatMap(orgId -> productRepository.findByBarcodeAndOrganizationId(barcode, orgId))
+                .or(() -> productRepository.findByBarcodeAndUser(barcode, user));
     }
 
-    public boolean existsProductBySku(String sku) {
+    public List<Product> findProductsByBarcodePrefix(String prefix) {
         User user = tenantScopeService.getCurrentUser();
         return tenantScopeService.resolveOrganizationId(user)
-                .map(orgId -> productRepository.existsBySkuAndOrganizationId(sku, orgId))
-                .orElseGet(() -> productRepository.existsBySkuAndUser(sku, user));
+                .map(orgId -> productRepository.findByOrganizationIdAndBarcodeStartingWith(orgId, prefix))
+                .orElseGet(() -> productRepository.findByUserAndBarcodeStartingWith(user, prefix));
+    }
+
+    public boolean existsProductByBarcode(String barcode) {
+        User user = tenantScopeService.getCurrentUser();
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> productRepository.existsByBarcodeAndOrganizationId(barcode, orgId))
+                .orElseGet(() -> productRepository.existsByBarcodeAndUser(barcode, user));
     }
 
     public boolean existsProductByName(String name) {

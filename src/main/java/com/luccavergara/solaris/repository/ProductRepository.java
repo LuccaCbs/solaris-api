@@ -9,43 +9,43 @@ import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    Optional<Product> findBySkuAndUser(String sku, User user);
+    Optional<Product> findByBarcodeAndUser(String barcode, User user);
 
-    Optional<Product> findBySkuAndOrganizationId(String sku, Long organizationId);
+    Optional<Product> findByBarcodeAndOrganizationId(String barcode, Long organizationId);
 
     Optional<Product> findByIdAndUser(Long id, User user);
 
     Optional<Product> findByIdAndOrganizationId(Long id, Long organizationId);
 
-    boolean existsBySkuAndUser(String sku, User user);
+    boolean existsByBarcodeAndUser(String barcode, User user);
 
-    boolean existsBySkuAndOrganizationId(String sku, Long organizationId);
+    boolean existsByBarcodeAndOrganizationId(String barcode, Long organizationId);
 
     List<Product> findAllByUser(User user);
 
     List<Product> findAllByOrganizationId(Long organizationId);
 
-    List<Product> findByUserAndNameContainingIgnoreCaseOrUserAndSkuContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
+    List<Product> findByUserAndNameContainingIgnoreCaseOrUserAndBarcodeContainingIgnoreCaseOrUserAndDescriptionContainingIgnoreCase(
             User user1,
             String name,
             User user2,
-            String sku,
+            String barcode,
             User user3,
             String description
     );
 
-    List<Product> findByOrganizationIdAndNameContainingIgnoreCaseOrOrganizationIdAndSkuContainingIgnoreCaseOrOrganizationIdAndDescriptionContainingIgnoreCase(
+    List<Product> findByOrganizationIdAndNameContainingIgnoreCaseOrOrganizationIdAndBarcodeContainingIgnoreCaseOrOrganizationIdAndDescriptionContainingIgnoreCase(
             Long organizationId1,
             String name,
             Long organizationId2,
-            String sku,
+            String barcode,
             Long organizationId3,
             String description
     );
 
-    List<Product> findByUserAndSkuStartingWith(User user, String skuPrefix);
+    List<Product> findByUserAndBarcodeStartingWith(User user, String barcodePrefix);
 
-    List<Product> findByOrganizationIdAndSkuStartingWith(Long organizationId, String skuPrefix);
+    List<Product> findByOrganizationIdAndBarcodeStartingWith(Long organizationId, String barcodePrefix);
 
     boolean existsByNameIgnoreCaseAndUser(String name, User user);
 
@@ -71,20 +71,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findAllByOrganizationIdAndActiveTrue(Long organizationId);
 
-    List<Product> findByUserAndActiveTrueAndNameContainingIgnoreCaseOrUserAndActiveTrueAndSkuContainingIgnoreCaseOrUserAndActiveTrueAndDescriptionContainingIgnoreCase(
+    List<Product> findByUserAndActiveTrueAndNameContainingIgnoreCaseOrUserAndActiveTrueAndBarcodeContainingIgnoreCaseOrUserAndActiveTrueAndDescriptionContainingIgnoreCase(
             User user1,
             String name,
             User user2,
-            String sku,
+            String barcode,
             User user3,
             String description
     );
 
-    List<Product> findByOrganizationIdAndActiveTrueAndNameContainingIgnoreCaseOrOrganizationIdAndActiveTrueAndSkuContainingIgnoreCaseOrOrganizationIdAndActiveTrueAndDescriptionContainingIgnoreCase(
+    List<Product> findByOrganizationIdAndActiveTrueAndNameContainingIgnoreCaseOrOrganizationIdAndActiveTrueAndBarcodeContainingIgnoreCaseOrOrganizationIdAndActiveTrueAndDescriptionContainingIgnoreCase(
             Long organizationId1,
             String name,
             Long organizationId2,
-            String sku,
+            String barcode,
             Long organizationId3,
             String description
     );

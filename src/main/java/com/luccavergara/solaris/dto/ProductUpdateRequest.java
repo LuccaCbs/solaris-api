@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.dto;
 
 import com.luccavergara.solaris.entity.ProductIvaRate;
+import com.luccavergara.solaris.entity.BarcodeFormat;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,7 +21,9 @@ public class ProductUpdateRequest {
 
     private String description;
 
-    private String sku;
+    private String barcode;
+
+    private BarcodeFormat barcodeFormat;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = false)

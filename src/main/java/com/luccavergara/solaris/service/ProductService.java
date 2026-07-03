@@ -6,6 +6,8 @@ import com.luccavergara.solaris.dto.ProductUpdateRequest;
 import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.entity.Product;
 import com.luccavergara.solaris.entity.ProductIvaRate;
+import com.luccavergara.solaris.entity.BarcodeFormat;
+import com.luccavergara.solaris.util.BarcodeUtils;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
@@ -52,7 +54,7 @@ public class ProductService {
 
             String[] headers = {
                     "Name",
-                    "SKU",
+                    "Barcode",
                     "Price",
                     "Stock Quantity",
                     "Category",
@@ -193,27 +195,36 @@ public class ProductService {
         return category.getId();
     }
 
-    private String resolveSku(String requestedSku, User currentUser) {
-        if (requestedSku != null && !requestedSku.isBlank()) {
-            return requestedSku.trim();
+    private ResolvedBarcode resolveBarcode(String requestedBarcode, BarcodeFormat requestedFormat, User currentUser) {
+        if (requestedBarcode != null && !requestedBarcode.isBlank()) {
+            String barcode = requestedBarcode.trim();
+            BarcodeFormat format = requestedFormat != null
+                    ? requestedFormat
+                    : BarcodeUtils.detectFormat(barcode);
+            BarcodeUtils.validateBarcode(barcode, format);
+
+            return new ResolvedBarcode(barcode, format);
         }
 
-        return generateAutomaticSku(currentUser);
+        return generateAutomaticBarcode(currentUser);
     }
 
-    private String generateAutomaticSku(User currentUser) {
-        String prefix = "GEN-";
-
-        int maxNumber = tenantQueryService.findProductsBySkuPrefix(prefix)
+    private ResolvedBarcode generateAutomaticBarcode(User currentUser) {
+        int maxSequence = tenantQueryService.findProductsByBarcodePrefix("779999")
                 .stream()
-                .map(Product::getSku)
-                .map(sku -> sku.substring(prefix.length()))
+                .map(Product::getBarcode)
+                .filter(value -> value.startsWith("779999") && value.length() == 13)
+                .map(value -> value.substring(6, 11))
                 .filter(value -> value.matches("\\d+"))
                 .mapToInt(Integer::parseInt)
                 .max()
                 .orElse(0);
 
-        return prefix + String.format("%03d", maxNumber + 1);
+        String barcode = BarcodeUtils.generateInternalEan13(maxSequence + 1);
+        return new ResolvedBarcode(barcode, BarcodeFormat.EAN_13);
+    }
+
+    private record ResolvedBarcode(String value, BarcodeFormat format) {
     }
 
     private Category resolveCategory(Long categoryId, User currentUser) {
@@ -251,17 +262,23 @@ public class ProductService {
             return false;
         }
 
-        String sku = resolveSkuForImportUpdate(request.getSku(), existingProduct, currentUser);
+        ResolvedBarcode barcode = resolveBarcodeForImportUpdate(
+                request.getBarcode(),
+                request.getBarcodeFormat(),
+                existingProduct,
+                currentUser
+        );
 
-        if (!existingProduct.getSku().equals(sku)
-                && tenantQueryService.existsProductBySku(sku)) {
-            throw new DuplicateResourceException("Product SKU already exists");
+        if (!existingProduct.getBarcode().equals(barcode.value())
+                && tenantQueryService.existsProductByBarcode(barcode.value())) {
+            throw new DuplicateResourceException("Product barcode already exists");
         }
 
         Category category = resolveCategory(request.getCategoryId(), currentUser);
 
         existingProduct.setDescription(request.getDescription());
-        existingProduct.setSku(sku);
+        existingProduct.setBarcode(barcode.value());
+        existingProduct.setBarcodeFormat(barcode.format());
         existingProduct.setPrice(request.getPrice());
         existingProduct.setStockQuantity(request.getStockQuantity());
         existingProduct.setCategory(category);
@@ -281,16 +298,17 @@ public class ProductService {
         return true;
     }
 
-    private String resolveSkuForImportUpdate(
-            String requestedSku,
+    private ResolvedBarcode resolveBarcodeForImportUpdate(
+            String requestedBarcode,
+            BarcodeFormat requestedFormat,
             Product existingProduct,
             User currentUser
     ) {
-        if (requestedSku != null && !requestedSku.isBlank()) {
-            return requestedSku.trim();
+        if (requestedBarcode != null && !requestedBarcode.isBlank()) {
+            return resolveBarcode(requestedBarcode, requestedFormat, currentUser);
         }
 
-        return existingProduct.getSku();
+        return new ResolvedBarcode(existingProduct.getBarcode(), existingProduct.getBarcodeFormat());
     }
 
     public ProductResponse createProduct(ProductRequest request) {
@@ -300,10 +318,14 @@ public class ProductService {
             throw new DuplicateResourceException("Product name already exists");
         }
 
-        String sku = resolveSku(request.getSku(), currentUser);
+        ResolvedBarcode barcode = resolveBarcode(
+                request.getBarcode(),
+                request.getBarcodeFormat(),
+                currentUser
+        );
 
-        if (tenantQueryService.existsProductBySku(sku)) {
-            throw new DuplicateResourceException("Product SKU already exists");
+        if (tenantQueryService.existsProductByBarcode(barcode.value())) {
+            throw new DuplicateResourceException("Product barcode already exists");
         }
 
         Category category = resolveCategory(request.getCategoryId(), currentUser);
@@ -311,7 +333,8 @@ public class ProductService {
         Product product = Product.builder()
                 .name(request.getName())
                 .description(request.getDescription())
-                .sku(sku)
+                .barcode(barcode.value())
+                .barcodeFormat(barcode.format())
                 .price(request.getPrice())
                 .stockQuantity(request.getStockQuantity())
                 .lowStockThreshold(request.getLowStockThreshold())
@@ -361,7 +384,7 @@ public class ProductService {
                 try {
                     ProductRequest request = ProductRequest.builder()
                             .name(getStringCellValue(row.getCell(0)))
-                            .sku(getStringCellValue(row.getCell(1)))
+                            .barcode(getStringCellValue(row.getCell(1)))
                             .price(getBigDecimalCellValue(row.getCell(2)))
                             .stockQuantity(getIntegerCellValue(row.getCell(3)))
                             .categoryId(resolveCategoryIdFromName(getStringCellValue(row.getCell(4))))
@@ -416,6 +439,13 @@ public class ProductService {
                 .toList();
     }
 
+    public ProductResponse getProductByBarcode(String barcode) {
+        Product product = tenantQueryService.findProductByBarcode(barcode.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        return mapToResponse(product);
+    }
+
     public ProductResponse getProductById(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -438,18 +468,23 @@ public class ProductService {
             throw new DuplicateResourceException("Product name already exists");
         }
 
-        String sku = resolveSku(request.getSku(), currentUser);
+        ResolvedBarcode barcode = resolveBarcode(
+                request.getBarcode(),
+                request.getBarcodeFormat(),
+                currentUser
+        );
 
-        if (!product.getSku().equals(sku)
-                && tenantQueryService.existsProductBySku(sku)) {
-            throw new DuplicateResourceException("Product SKU already exists");
+        if (!product.getBarcode().equals(barcode.value())
+                && tenantQueryService.existsProductByBarcode(barcode.value())) {
+            throw new DuplicateResourceException("Product barcode already exists");
         }
 
         Category category = resolveCategory(request.getCategoryId(), currentUser);
 
         product.setName(request.getName());
         product.setDescription(request.getDescription());
-        product.setSku(sku);
+        product.setBarcode(barcode.value());
+        product.setBarcodeFormat(barcode.format());
         product.setPrice(request.getPrice());
         product.setCategory(category);
         product.setLowStockThreshold(request.getLowStockThreshold());
@@ -525,7 +560,8 @@ public class ProductService {
                 .id(product.getId())
                 .name(product.getName())
                 .description(product.getDescription())
-                .sku(product.getSku())
+                .barcode(product.getBarcode())
+                .barcodeFormat(product.getBarcodeFormat())
                 .price(product.getPrice())
                 .stockQuantity(product.getStockQuantity())
                 .lowStockThreshold(product.getLowStockThreshold())

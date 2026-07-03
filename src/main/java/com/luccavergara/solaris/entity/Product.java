@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "products",
-        uniqueConstraints = @UniqueConstraint(name = "uk_products_organization_sku", columnNames = {"organization_id", "sku"})
+        uniqueConstraints = @UniqueConstraint(name = "uk_products_organization_barcode", columnNames = {"organization_id", "barcode"})
 )
 @Getter
 @Setter
@@ -29,7 +29,12 @@ public class Product {
     private String description;
 
     @Column(nullable = false)
-    private String sku;
+    private String barcode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "barcode_format", nullable = false)
+    @Builder.Default
+    private BarcodeFormat barcodeFormat = BarcodeFormat.CODE_128;
 
     @Column(nullable = false)
     private BigDecimal price;

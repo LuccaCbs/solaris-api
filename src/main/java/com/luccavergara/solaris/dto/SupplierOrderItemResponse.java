@@ -12,6 +12,6 @@ public class SupplierOrderItemResponse {
     private Long id;
     private Long productId;
     private String productName;
-    private String productSku;
+    private String productBarcode;
     private Integer quantity;
 }
