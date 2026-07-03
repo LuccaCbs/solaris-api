@@ -70,11 +70,11 @@ public final class BarcodeUtils {
     }
 
     public static String generateInternalEan13(int sequence) {
-        if (sequence < 1 || sequence > 99999) {
+        if (sequence < 1 || sequence > 999999) {
             throw new IllegalArgumentException("Barcode sequence out of range");
         }
 
-        String base = INTERNAL_EAN_PREFIX + String.format("%05d", sequence);
+        String base = INTERNAL_EAN_PREFIX + String.format("%06d", sequence);
         return base + calculateEan13CheckDigit(base);
     }
 

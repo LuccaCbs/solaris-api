@@ -214,7 +214,7 @@ public class ProductService {
                 .stream()
                 .map(Product::getBarcode)
                 .filter(value -> value.startsWith("779999") && value.length() == 13)
-                .map(value -> value.substring(6, 11))
+                .map(value -> value.substring(6, 12))
                 .filter(value -> value.matches("\\d+"))
                 .mapToInt(Integer::parseInt)
                 .max()
