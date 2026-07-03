@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.controller;
 
+import com.luccavergara.solaris.dto.BulkStockMovementRequest;
 import com.luccavergara.solaris.dto.StockMovementRequest;
 import com.luccavergara.solaris.dto.StockMovementResponse;
 import com.luccavergara.solaris.service.StockMovementService;
@@ -22,6 +23,13 @@ public class StockMovementController {
             @Valid @RequestBody StockMovementRequest request
     ) {
         return ResponseEntity.ok(stockMovementService.createMovement(request));
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<StockMovementResponse>> createMovements(
+            @Valid @RequestBody BulkStockMovementRequest request
+    ) {
+        return ResponseEntity.ok(stockMovementService.createMovements(request));
     }
 
     @GetMapping

@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.BulkStockMovementRequest;
 import com.luccavergara.solaris.dto.StockMovementRequest;
 import com.luccavergara.solaris.dto.StockMovementResponse;
 import com.luccavergara.solaris.entity.Product;
@@ -11,6 +12,7 @@ import com.luccavergara.solaris.repository.ProductRepository;
 import com.luccavergara.solaris.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,14 +28,45 @@ public class StockMovementService {
     private final TenantScopeService tenantScopeService;
 
     public StockMovementResponse createMovement(StockMovementRequest request) {
+        return persistMovement(
+                request.getProductId(),
+                request.getType(),
+                request.getQuantity(),
+                request.getReason()
+        );
+    }
+
+    @Transactional
+    public List<StockMovementResponse> createMovements(BulkStockMovementRequest request) {
+        return request.getItems().stream()
+                .map(item -> persistMovement(
+                        item.getProductId(),
+                        StockMovementType.IN,
+                        item.getQuantity(),
+                        request.getReason()
+                ))
+                .toList();
+    }
+
+    private StockMovementResponse persistMovement(
+            Long productId,
+            StockMovementType type,
+            Integer quantity,
+            String reason
+    ) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Product product = tenantQueryService.findProductById(request.getProductId())
+        Product product = tenantQueryService.findProductById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         int previousStock = product.getStockQuantity();
 
-        applyStockMovement(product, request);
+        applyStockMovement(product, StockMovementRequest.builder()
+                .productId(productId)
+                .type(type)
+                .quantity(quantity)
+                .reason(reason)
+                .build());
 
         int currentStock = product.getStockQuantity();
 
@@ -42,11 +75,11 @@ public class StockMovementService {
         StockMovement movement = StockMovement.builder()
                 .product(product)
                 .user(currentUser)
-                .type(request.getType())
-                .quantity(request.getQuantity())
+                .type(type)
+                .quantity(quantity)
                 .previousStock(previousStock)
                 .currentStock(currentStock)
-                .reason(request.getReason())
+                .reason(reason)
                 .createdAt(LocalDateTime.now())
                 .build();
 
