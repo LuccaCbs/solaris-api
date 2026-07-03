@@ -323,13 +323,27 @@ public class TusFacturasFiscalProvider implements FiscalProvider {
             return fallback;
         }
 
-        String digits = raw.replaceAll("\\D", "");
+        String numeroPart = raw;
+        int dashIndex = raw.lastIndexOf('-');
+        if (dashIndex >= 0 && dashIndex < raw.length() - 1) {
+            numeroPart = raw.substring(dashIndex + 1);
+        }
+
+        String digits = numeroPart.replaceAll("\\D", "");
         if (!StringUtils.hasText(digits)) {
             return fallback;
         }
 
+        if (digits.length() > 8) {
+            digits = digits.substring(digits.length() - 8);
+        }
+
         try {
-            return Long.parseLong(digits);
+            long parsed = Long.parseLong(digits);
+            if (parsed <= 0 || parsed > 99_999_999L) {
+                return fallback;
+            }
+            return parsed;
         } catch (NumberFormatException ex) {
             return fallback;
         }

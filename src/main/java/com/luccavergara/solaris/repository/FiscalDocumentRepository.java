@@ -25,6 +25,7 @@ public interface FiscalDocumentRepository extends JpaRepository<FiscalDocument, 
             WHERE fd.organization.id = :organizationId
               AND fd.puntoVenta = :puntoVenta
               AND fd.tipoComprobante = :tipoComprobante
+              AND fd.numeroComprobante <= 99999999
             """)
     Long findMaxNumeroComprobante(
             @Param("organizationId") Long organizationId,

@@ -30,6 +30,7 @@ public class FiscalDocumentService {
 
     private static final String CF_DOCUMENT_NUMBER = "0";
     private static final String CF_RAZON_SOCIAL = "Consumidor Final";
+    private static final long MAX_NUMERO_COMPROBANTE = 99_999_999L;
 
     private final FiscalDocumentRepository fiscalDocumentRepository;
     private final OrganizationRepository organizationRepository;
@@ -69,6 +70,12 @@ public class FiscalDocumentService {
                 puntoVenta,
                 tipoComprobante
         ) + 1;
+
+        if (nextNumero > MAX_NUMERO_COMPROBANTE) {
+            throw new IllegalStateException(
+                    "Se alcanzó el número máximo de comprobante (8 dígitos) para este punto de venta"
+            );
+        }
 
         EmitInvoiceCommand command = buildCommand(
                 organization,
