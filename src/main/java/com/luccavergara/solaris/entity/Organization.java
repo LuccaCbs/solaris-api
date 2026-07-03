@@ -36,7 +36,7 @@ public class Organization {
     @Builder.Default
     private FiscalProviderType fiscalProvider = FiscalProviderType.MOCK;
 
-    @Column(name = "fiscal_api_key", length = 512)
+    @Column(name = "fiscal_api_key", columnDefinition = "TEXT")
     private String fiscalApiKey;
 
     @Column(name = "fiscal_punto_venta")
