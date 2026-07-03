@@ -39,9 +39,11 @@ public class FiscalDocumentService {
     private final TenantScopeService tenantScopeService;
     private final FiscalProviderFactory fiscalProviderFactory;
     private final ObjectMapper objectMapper;
+    private final EntitlementService entitlementService;
 
     @Transactional
     public FiscalDocumentResponse emitInvoiceForSale(Long saleId, EmitInvoiceRequest request) {
+        assertFiscalModule();
         Sale sale = tenantQueryService.findSaleById(saleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found"));
 
@@ -119,6 +121,8 @@ public class FiscalDocumentService {
     }
 
     public List<FiscalDocumentResponse> getAllFiscalDocuments() {
+        assertFiscalModule();
+
         return tenantScopeService.resolveOrganizationId(tenantScopeService.getCurrentUser())
                 .map(fiscalDocumentRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
                 .orElse(List.of())
@@ -128,6 +132,8 @@ public class FiscalDocumentService {
     }
 
     public FiscalDocumentResponse getFiscalDocumentById(Long id) {
+        assertFiscalModule();
+
         return tenantScopeService.resolveOrganizationId(tenantScopeService.getCurrentUser())
                 .flatMap(orgId -> fiscalDocumentRepository.findByIdAndOrganizationId(id, orgId))
                 .map(this::mapToResponse)
@@ -135,6 +141,8 @@ public class FiscalDocumentService {
     }
 
     public FiscalDocumentResponse getFiscalDocumentBySaleId(Long saleId) {
+        assertFiscalModule();
+
         return tenantScopeService.resolveOrganizationId(tenantScopeService.getCurrentUser())
                 .flatMap(orgId -> fiscalDocumentRepository.findBySaleIdAndOrganizationId(saleId, orgId))
                 .map(this::mapToResponse)
@@ -143,6 +151,7 @@ public class FiscalDocumentService {
 
     public FiscalConfigResponse getFiscalConfig(Long organizationId) {
         validateOrganizationAccess(organizationId);
+        entitlementService.assertModule(organizationId, ModuleCode.FISCAL);
 
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
@@ -153,6 +162,7 @@ public class FiscalDocumentService {
     @Transactional
     public FiscalConfigResponse updateFiscalConfig(Long organizationId, FiscalConfigRequest request) {
         validateOrganizationAccess(organizationId);
+        entitlementService.assertModule(organizationId, ModuleCode.FISCAL);
 
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
@@ -499,6 +509,11 @@ public class FiscalDocumentService {
             }
         }
         return builder.toString();
+    }
+
+    private void assertFiscalModule() {
+        tenantScopeService.resolveOrganizationId(tenantScopeService.getCurrentUser())
+                .ifPresent(orgId -> entitlementService.assertModule(orgId, ModuleCode.FISCAL));
     }
 
     private record InvoiceTotals(BigDecimal neto, BigDecimal iva, BigDecimal total) {

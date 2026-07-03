@@ -37,6 +37,7 @@ public class OrganizationInviteService {
     private final CategoryRepository categoryRepository;
     private final OrganizationMembershipService organizationMembershipService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final EntitlementService entitlementService;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -47,6 +48,7 @@ public class OrganizationInviteService {
 
     public OrganizationInviteResponse createInvite(Long organizationId, OrganizationInviteRequest request) {
         validateOrganizationAccess(organizationId);
+        entitlementService.assertModule(organizationId, ModuleCode.TEAM);
         validateInviteRole(request.getRole());
 
         String normalizedEmail = request.getEmail().trim().toLowerCase();

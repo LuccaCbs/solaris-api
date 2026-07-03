@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.*;
+import com.luccavergara.solaris.service.EntitlementService;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
 import com.luccavergara.solaris.service.OrganizationService;
@@ -20,6 +21,7 @@ import java.util.List;
 public class OrganizationController {
 
     private final OrganizationInviteService organizationInviteService;
+    private final EntitlementService entitlementService;
     private final FiscalDocumentService fiscalDocumentService;
     private final SubscriptionService subscriptionService;
     private final StoreService storeService;
@@ -90,6 +92,12 @@ public class OrganizationController {
             @Valid @RequestBody CreateStoreRequest request
     ) {
         return storeService.createStore(orgId, request);
+    }
+
+    @GetMapping("/{orgId}/entitlements")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
+    public OrganizationEntitlementsResponse getEntitlements(@PathVariable Long orgId) {
+        return entitlementService.getEntitlements(orgId);
     }
 
     @GetMapping("/{orgId}/subscription")

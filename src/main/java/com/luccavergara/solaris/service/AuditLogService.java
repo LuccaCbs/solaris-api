@@ -3,6 +3,7 @@ package com.luccavergara.solaris.service;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 import com.luccavergara.solaris.entity.AuditLog;
+import com.luccavergara.solaris.entity.ModuleCode;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ public class AuditLogService {
     private final AuditLogRepository auditLogRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final TenantQueryService tenantQueryService;
+    private final TenantScopeService tenantScopeService;
+    private final EntitlementService entitlementService;
 
     public void log(
             AuditAction action,
@@ -59,6 +62,10 @@ public class AuditLogService {
 
 
     public List<AuditLogResponse> getAuditLogs() {
+        User currentUser = authenticatedUserService.getCurrentUser();
+        tenantScopeService.resolveOrganizationId(currentUser)
+                .ifPresent(orgId -> entitlementService.assertModule(orgId, ModuleCode.AUDIT));
+
         return tenantQueryService.findAuditLogs()
                 .stream()
                 .map(this::mapToResponse)

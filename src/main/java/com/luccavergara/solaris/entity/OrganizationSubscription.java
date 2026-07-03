@@ -25,7 +25,7 @@ public class OrganizationSubscription {
     @Enumerated(EnumType.STRING)
     @Column(name = "plan_code", nullable = false)
     @Builder.Default
-    private SubscriptionPlanCode planCode = SubscriptionPlanCode.STARTER;
+    private SubscriptionPlanCode planCode = SubscriptionPlanCode.POS;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

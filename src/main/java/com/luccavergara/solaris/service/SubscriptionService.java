@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.OrganizationEntitlementsResponse;
 import com.luccavergara.solaris.dto.OrganizationSubscriptionResponse;
 import com.luccavergara.solaris.dto.StoreAddonCheckoutRequest;
 import com.luccavergara.solaris.dto.StoreAddonCheckoutResponse;
@@ -30,6 +31,7 @@ public class SubscriptionService {
     private final MercadoPagoBillingService mercadoPagoBillingService;
     private final OrganizationMembershipService organizationMembershipService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final EntitlementService entitlementService;
 
     @Value("${application.billing.mock-enabled:true}")
     private boolean billingMockEnabled;
@@ -46,7 +48,8 @@ public class SubscriptionService {
             StoreRepository storeRepository,
             @Lazy MercadoPagoBillingService mercadoPagoBillingService,
             OrganizationMembershipService organizationMembershipService,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            EntitlementService entitlementService
     ) {
         this.organizationRepository = organizationRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -54,6 +57,7 @@ public class SubscriptionService {
         this.mercadoPagoBillingService = mercadoPagoBillingService;
         this.organizationMembershipService = organizationMembershipService;
         this.authenticatedUserService = authenticatedUserService;
+        this.entitlementService = entitlementService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -94,6 +98,10 @@ public class SubscriptionService {
             throw new SubscriptionLimitException(
                     "Store limit reached. Purchase an additional store slot to continue."
             );
+        }
+
+        if (activeStoreCount >= 1) {
+            entitlementService.assertModule(organizationId, ModuleCode.MULTI_STORE);
         }
     }
 
@@ -170,7 +178,7 @@ public class SubscriptionService {
         return subscriptionRepository.save(
                 OrganizationSubscription.builder()
                         .organization(organization)
-                        .planCode(SubscriptionPlanCode.STARTER)
+                        .planCode(SubscriptionPlanCode.POS)
                         .status(SubscriptionStatus.TRIALING)
                         .maxStores(1)
                         .extraStoresPurchased(0)
@@ -189,10 +197,23 @@ public class SubscriptionService {
             long activeStoreCount
     ) {
         int allowedStores = subscription.getAllowedStoreCount();
-        boolean canAddStore = subscription.isBillingActive() && activeStoreCount < allowedStores;
+        boolean hasStoreCapacity = activeStoreCount < allowedStores;
+        boolean requiresMultiStoreModule = activeStoreCount >= 1;
+        boolean hasMultiStoreModule = entitlementService.hasModule(
+                subscription.getOrganization().getId(),
+                ModuleCode.MULTI_STORE
+        );
+        boolean canAddStore = subscription.isBillingActive()
+                && hasStoreCapacity
+                && (!requiresMultiStoreModule || hasMultiStoreModule);
+
+        OrganizationEntitlementsResponse entitlements = entitlementService.getEntitlements(
+                subscription.getOrganization().getId()
+        );
 
         return OrganizationSubscriptionResponse.builder()
                 .planCode(subscription.getPlanCode())
+                .planDisplayName(entitlementService.resolvePlanDisplayName(subscription.getPlanCode()))
                 .status(subscription.getStatus())
                 .maxStores(subscription.getMaxStores())
                 .extraStoresPurchased(subscription.getExtraStoresPurchased())
@@ -203,6 +224,10 @@ public class SubscriptionService {
                 .trialEndsAt(subscription.getTrialEndsAt())
                 .currentPeriodStart(subscription.getCurrentPeriodStart())
                 .currentPeriodEnd(subscription.getCurrentPeriodEnd())
+                .activeModules(entitlements.getActiveModules())
+                .planModules(entitlements.getPlanModules())
+                .addonModules(entitlements.getAddonModules())
+                .promoModules(entitlements.getPromoModules())
                 .build();
     }
 

@@ -6,6 +6,7 @@ import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 import com.luccavergara.solaris.entity.Customer;
 import com.luccavergara.solaris.entity.DocumentType;
+import com.luccavergara.solaris.entity.ModuleCode;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.repository.CustomerRepository;
@@ -25,8 +26,10 @@ public class CustomerService {
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
+    private final EntitlementService entitlementService;
 
     public CustomerResponse createCustomer(CustomerRequest request) {
+        assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
         NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
 
@@ -72,6 +75,8 @@ public class CustomerService {
     }
 
     public List<CustomerResponse> getAllCustomers() {
+        assertCustomersModule();
+
         return tenantQueryService.findAllCustomers()
                 .stream()
                 .map(this::mapToResponse)
@@ -79,6 +84,8 @@ public class CustomerService {
     }
 
     public CustomerResponse getCustomerById(Long id) {
+        assertCustomersModule();
+
         Customer customer = tenantQueryService.findCustomerById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
 
@@ -86,6 +93,7 @@ public class CustomerService {
     }
 
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
+        assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
         NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
 
@@ -122,6 +130,8 @@ public class CustomerService {
     }
 
     public void deleteCustomer(Long id) {
+        assertCustomersModule();
+
         Customer customer = tenantQueryService.findCustomerById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
 
@@ -203,6 +213,12 @@ public class CustomerService {
                             }
                         }
                 );
+    }
+
+    private void assertCustomersModule() {
+        User currentUser = authenticatedUserService.getCurrentUser();
+        tenantScopeService.resolveOrganizationId(currentUser)
+                .ifPresent(orgId -> entitlementService.assertModule(orgId, ModuleCode.CUSTOMERS));
     }
 
     private CustomerResponse mapToResponse(Customer customer) {
