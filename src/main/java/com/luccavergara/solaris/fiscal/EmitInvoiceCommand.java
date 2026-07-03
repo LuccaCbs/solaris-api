@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.fiscal;
 
+import com.luccavergara.solaris.entity.CondicionIva;
 import com.luccavergara.solaris.entity.TipoComprobante;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,6 +24,9 @@ public class EmitInvoiceCommand {
     private String customerDocumentType;
     private String customerDocumentNumber;
     private String customerRazonSocial;
+    private CondicionIva customerCondicionIva;
+    private String customerEmail;
+    private String customerAddress;
     private List<InvoiceLineCommand> lines;
 
     @Getter

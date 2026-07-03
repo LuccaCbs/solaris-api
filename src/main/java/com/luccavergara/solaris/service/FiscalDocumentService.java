@@ -264,6 +264,9 @@ public class FiscalDocumentService {
         String customerDocumentType;
         String customerDocumentNumber;
         String customerRazonSocial;
+        CondicionIva customerCondicionIva;
+        String customerEmail;
+        String customerAddress;
 
         if (customer != null) {
             customerDocumentType = customer.getDocumentType().name();
@@ -272,10 +275,16 @@ public class FiscalDocumentService {
                     customer.getDocumentNumber()
             );
             customerRazonSocial = customer.getRazonSocial();
+            customerCondicionIva = customer.getCondicionIva();
+            customerEmail = customer.getEmail();
+            customerAddress = customer.getAddress();
         } else {
             customerDocumentType = DocumentType.DNI.name();
             customerDocumentNumber = CF_DOCUMENT_NUMBER;
             customerRazonSocial = CF_RAZON_SOCIAL;
+            customerCondicionIva = CondicionIva.CONSUMIDOR_FINAL;
+            customerEmail = null;
+            customerAddress = null;
         }
 
         List<EmitInvoiceCommand.InvoiceLineCommand> lines = new ArrayList<>();
@@ -315,6 +324,9 @@ public class FiscalDocumentService {
                 .customerDocumentType(customerDocumentType)
                 .customerDocumentNumber(customerDocumentNumber)
                 .customerRazonSocial(customerRazonSocial)
+                .customerCondicionIva(customerCondicionIva)
+                .customerEmail(customerEmail)
+                .customerAddress(customerAddress)
                 .importeNeto(totals.neto())
                 .importeIva(totals.iva())
                 .importeTotal(totals.total())

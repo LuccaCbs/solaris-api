@@ -114,6 +114,49 @@ http://localhost:8080/v3/api-docs
 
 ---
 
+## 🧾 Fiscal invoicing (TusFacturas / AFIP)
+
+Solaris can emit Factura B/C through [TusFacturasAPP](https://www.tusfacturas.app/api-factura-electronica-afip.html) as an AFIP intermediary.
+
+### Environment variables
+
+Copy `.env.example` and set at least the database and JWT values. TusFacturas endpoint override (optional):
+
+```properties
+TUSFACTURAS_BASE_URL=https://www.tusfacturas.app/app/api/v2/facturacion/nuevo
+```
+
+TusFacturas does **not** expose a separate sandbox URL. Development uses the **Plan API DEV** (free 30-day trial) against the same production endpoint; comprobantes are ficticios and CAE comes back empty.
+
+### Organization credentials (Admin > Fiscal settings)
+
+1. Set **CUIT**, **razón social**, **condición IVA** and **punto de venta** (must match the PDV configured in TusFacturas).
+2. Choose provider **TUSFACTURAS**.
+3. Paste credentials as JSON in the API key field (never commit real values):
+
+```json
+{"apikey":"YOUR_APIKEY","apitoken":"YOUR_APITOKEN","usertoken":"YOUR_USERTOKEN"}
+```
+
+If provider is TUSFACTURAS but credentials are missing or incomplete, Solaris falls back to **MOCK** (fake CAE).
+
+### Obtaining TusFacturas Plan API DEV credentials
+
+1. Register at [quiero-probar-api-factura-electronica](https://www.tusfacturas.app/quiero-probar-api-factura-electronica.html) (Plan API DEV, 30 days, up to 1,500 test invoices).
+2. In TusFacturas: **Menú > Mi espacio de trabajo > Puntos de venta** — create a test PDV (e.g. 679) with your CUIT.
+3. Copy **apikey**, **apitoken** and **usertoken** from the PDV credentials panel into the Admin fiscal JSON above.
+
+### Test flow
+
+1. Configure organization fiscal data and TusFacturas credentials.
+2. Create a sale and emit invoice (Consumidor Final or with customer).
+3. In Plan API DEV: expect `error: "N"` but **empty CAE** — comprobante is ficticio.
+4. In production (CUIT linked to AFIP): expect real **CAE**, **vencimiento_cae** and **comprobante_pdf_url** (PDF URL is temporary; download and store it).
+
+API docs: [developers.tusfacturas.app](https://developers.tusfacturas.app/como-empiezo)
+
+---
+
 ## 📌 Roadmap
 
 - [x] JWT Authentication

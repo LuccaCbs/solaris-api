@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.fiscal;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luccavergara.solaris.entity.FiscalProviderType;
 import com.luccavergara.solaris.entity.Organization;
 import lombok.RequiredArgsConstructor;
@@ -14,32 +15,37 @@ public class FiscalProviderFactory {
 
     private final MockFiscalProvider mockFiscalProvider;
     private final TusFacturasFiscalProvider tusFacturasFiscalProvider;
+    private final ObjectMapper objectMapper;
 
     public FiscalProvider resolve(Organization organization) {
         FiscalProviderType configured = organization.getFiscalProvider() != null
                 ? organization.getFiscalProvider()
                 : FiscalProviderType.MOCK;
 
-        if (configured == FiscalProviderType.TUSFACTURAS
-                && StringUtils.hasText(organization.getFiscalApiKey())) {
-            return new ApiKeyAwareFiscalProvider(tusFacturasFiscalProvider, organization.getFiscalApiKey());
-        }
-
         if (configured == FiscalProviderType.TUSFACTURAS) {
-            log.warn(
-                    "Organization {} configured for TUSFACTURAS but no API key set — falling back to MOCK provider",
-                    organization.getId()
-            );
+            return TusFacturasCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                    .<FiscalProvider>map(credentials -> new TusFacturasAwareProvider(tusFacturasFiscalProvider, credentials))
+                    .orElseGet(() -> {
+                        log.warn(
+                                "Organization {} configured for TUSFACTURAS but credentials are missing or incomplete "
+                                        + "(expected JSON with apikey, apitoken, usertoken) — falling back to MOCK provider",
+                                organization.getId()
+                        );
+                        return mockFiscalProvider;
+                    });
         }
 
         return mockFiscalProvider;
     }
 
-    private record ApiKeyAwareFiscalProvider(FiscalProvider delegate, String apiKey) implements FiscalProvider {
+    private record TusFacturasAwareProvider(
+            TusFacturasFiscalProvider delegate,
+            TusFacturasCredentials credentials
+    ) implements FiscalProvider {
 
         @Override
         public EmitInvoiceResult emitInvoice(EmitInvoiceCommand command) {
-            return delegate.emitInvoice(command);
+            return delegate.emitInvoice(command, credentials);
         }
 
         @Override
