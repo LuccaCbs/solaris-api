@@ -89,12 +89,15 @@ public class MercadoPagoClient {
                     StringUtils.hasText(sandboxInitPoint) ? sandboxInitPoint : initPoint
             );
         } catch (RestClientResponseException ex) {
+            String mpError = extractMercadoPagoError(ex.getResponseBodyAsString());
             log.error(
                     "Mercado Pago preference HTTP {}: {}",
                     ex.getStatusCode().value(),
                     ex.getResponseBodyAsString()
             );
-            throw new IllegalStateException("Could not create Mercado Pago checkout preference");
+            throw new IllegalStateException(
+                    mpError != null ? mpError : "Could not create Mercado Pago checkout preference"
+            );
         } catch (Exception ex) {
             log.error("Mercado Pago preference error: {}", ex.getMessage());
             throw new IllegalStateException("Could not create Mercado Pago checkout preference");
@@ -139,6 +142,29 @@ public class MercadoPagoClient {
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
+    }
+
+    private String extractMercadoPagoError(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return null;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            String message = root.path("message").asText(null);
+
+            if (StringUtils.hasText(message)) {
+                return message;
+            }
+
+            if (root.path("cause").isArray() && !root.path("cause").isEmpty()) {
+                return root.path("cause").get(0).path("description").asText(null);
+            }
+        } catch (Exception ex) {
+            log.debug("Could not parse Mercado Pago error response");
+        }
+
+        return null;
     }
 
     public record CreatePreferenceCommand(

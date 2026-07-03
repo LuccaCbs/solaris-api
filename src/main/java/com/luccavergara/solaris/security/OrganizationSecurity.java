@@ -14,7 +14,7 @@ public class OrganizationSecurity {
         OrganizationMemberRole currentRole = resolveCurrentRole();
 
         if (currentRole == null) {
-            return true;
+            return false;
         }
 
         return currentRole.getPrivilegeLevel() >= minimumRole.getPrivilegeLevel();

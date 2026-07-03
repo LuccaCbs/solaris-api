@@ -62,7 +62,7 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/checkout")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).OWNER)")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
             @PathVariable Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
@@ -71,7 +71,7 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).OWNER)")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse purchaseStoreAddonMock(
             @PathVariable Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
