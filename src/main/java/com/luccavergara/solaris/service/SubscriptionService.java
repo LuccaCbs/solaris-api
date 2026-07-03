@@ -11,6 +11,7 @@ import com.luccavergara.solaris.repository.OrganizationSubscriptionRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,8 @@ public class SubscriptionService {
     private final OrganizationSubscriptionRepository subscriptionRepository;
     private final StoreRepository storeRepository;
     private final MercadoPagoBillingService mercadoPagoBillingService;
+    private final OrganizationMembershipService organizationMembershipService;
+    private final AuthenticatedUserService authenticatedUserService;
 
     @Value("${application.billing.mock-enabled:true}")
     private boolean billingMockEnabled;
@@ -41,12 +44,16 @@ public class SubscriptionService {
             OrganizationRepository organizationRepository,
             OrganizationSubscriptionRepository subscriptionRepository,
             StoreRepository storeRepository,
-            @Lazy MercadoPagoBillingService mercadoPagoBillingService
+            @Lazy MercadoPagoBillingService mercadoPagoBillingService,
+            OrganizationMembershipService organizationMembershipService,
+            AuthenticatedUserService authenticatedUserService
     ) {
         this.organizationRepository = organizationRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.storeRepository = storeRepository;
         this.mercadoPagoBillingService = mercadoPagoBillingService;
+        this.organizationMembershipService = organizationMembershipService;
+        this.authenticatedUserService = authenticatedUserService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -57,6 +64,8 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public OrganizationSubscriptionResponse getSubscription(Long organizationId) {
+        assertCanManageOrganizationBilling(organizationId);
+
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
@@ -93,6 +102,8 @@ public class SubscriptionService {
             Long organizationId,
             StoreAddonCheckoutRequest request
     ) {
+        assertCanManageOrganizationBilling(organizationId);
+
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
@@ -143,6 +154,8 @@ public class SubscriptionService {
             Long organizationId,
             StoreAddonCheckoutRequest request
     ) {
+        assertCanManageOrganizationBilling(organizationId);
+
         if (!billingMockEnabled) {
             throw new UnsupportedOperationException("Mock billing is disabled");
         }
@@ -198,6 +211,18 @@ public class SubscriptionService {
             return BillingProvider.valueOf(billingProviderName.toUpperCase());
         } catch (IllegalArgumentException ex) {
             return BillingProvider.MERCADOPAGO;
+        }
+    }
+
+    private void assertCanManageOrganizationBilling(Long organizationId) {
+        User user = authenticatedUserService.getCurrentUser();
+        OrganizationMember membership = organizationMembershipService.resolveMembershipForOrganization(
+                user,
+                organizationId
+        );
+
+        if (membership.getRole().getPrivilegeLevel() < OrganizationMemberRole.ADMIN.getPrivilegeLevel()) {
+            throw new AccessDeniedException("Insufficient permissions for organization billing");
         }
     }
 }

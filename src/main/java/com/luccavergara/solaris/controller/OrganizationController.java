@@ -93,24 +93,24 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/subscription")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
-    public OrganizationSubscriptionResponse getSubscription(@PathVariable Long orgId) {
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationSubscriptionResponse getSubscription(@PathVariable("orgId") Long orgId) {
         return subscriptionService.getSubscription(orgId);
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/checkout")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
-            @PathVariable Long orgId,
+            @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
         return subscriptionService.initiateStoreAddonCheckout(orgId, request);
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse purchaseStoreAddonMock(
-            @PathVariable Long orgId,
+            @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
         return subscriptionService.purchaseStoreAddonMock(orgId, request);
