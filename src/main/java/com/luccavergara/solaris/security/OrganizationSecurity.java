@@ -20,6 +20,19 @@ public class OrganizationSecurity {
         return currentRole.getPrivilegeLevel() >= minimumRole.getPrivilegeLevel();
     }
 
+    public boolean belongsToOrganization(Long organizationId) {
+        if (organizationId == null) {
+            return false;
+        }
+
+        Long currentOrgId = TenantContext.getOrganizationId();
+        return currentOrgId != null && currentOrgId.equals(organizationId);
+    }
+
+    public boolean canAccessOrganization(Long organizationId, OrganizationMemberRole minimumRole) {
+        return belongsToOrganization(organizationId) && hasMinimumRole(minimumRole);
+    }
+
     private OrganizationMemberRole resolveCurrentRole() {
         OrganizationMemberRole roleFromContext = TenantContext.getRole();
         if (roleFromContext != null) {

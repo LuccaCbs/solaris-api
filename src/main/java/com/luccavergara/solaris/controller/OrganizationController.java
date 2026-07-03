@@ -93,13 +93,13 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/subscription")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse getSubscription(@PathVariable Long orgId) {
         return subscriptionService.getSubscription(orgId);
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/checkout")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
             @PathVariable Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
