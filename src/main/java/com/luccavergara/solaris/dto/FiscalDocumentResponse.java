@@ -28,6 +28,7 @@ public class FiscalDocumentResponse {
     private BigDecimal importeIva;
     private BigDecimal importeTotal;
     private FiscalDocumentStatus status;
+    private String rejectionReason;
     private String pdfUrl;
     private LocalDateTime createdAt;
 }

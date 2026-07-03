@@ -68,6 +68,9 @@ public class FiscalDocument {
     @Column(name = "afip_raw_json", columnDefinition = "TEXT")
     private String afipRawJson;
 
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
     @Column(name = "pdf_url", length = 1024)
     private String pdfUrl;
 

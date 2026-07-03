@@ -123,9 +123,12 @@ public class TusFacturasFiscalProvider implements FiscalProvider {
         cliente.put("provincia", DEFAULT_PROVINCIA);
         cliente.put("envia_por_mail", "N");
         cliente.put("condicion_pago", DEFAULT_CONDICION_PAGO);
-        cliente.put("condicion_iva", mapCondicionIva(command.getCustomerCondicionIva()));
+        String condicionIva = mapCondicionIva(command.getCustomerCondicionIva());
+        cliente.put("condicion_iva", condicionIva);
+        cliente.put("condicion_iva_operacion", condicionIva);
         cliente.put("codigo", buildClienteCodigo(command));
         cliente.put("rg5329", "N");
+        cliente.put("reclama_deuda", "N");
 
         if (StringUtils.hasText(command.getCustomerEmail())) {
             cliente.put("email", command.getCustomerEmail());

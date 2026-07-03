@@ -1,5 +1,7 @@
 package com.luccavergara.solaris.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luccavergara.solaris.dto.EmitInvoiceRequest;
 import com.luccavergara.solaris.dto.FiscalConfigRequest;
 import com.luccavergara.solaris.dto.FiscalConfigResponse;
@@ -35,6 +37,7 @@ public class FiscalDocumentService {
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
     private final FiscalProviderFactory fiscalProviderFactory;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public FiscalDocumentResponse emitInvoiceForSale(Long saleId, EmitInvoiceRequest request) {
@@ -100,6 +103,7 @@ public class FiscalDocumentService {
                 .importeTotal(totals.total())
                 .status(status)
                 .afipRawJson(result.getRawJson())
+                .rejectionReason(resolveRejectionReason(result))
                 .pdfUrl(result.getPdfUrl())
                 .build();
 
@@ -279,7 +283,8 @@ public class FiscalDocumentService {
             customerEmail = customer.getEmail();
             customerAddress = customer.getAddress();
         } else {
-            customerDocumentType = DocumentType.DNI.name();
+            // TusFacturas requires OTRO/0 for consumidor final without buyer data (not DNI/0).
+            customerDocumentType = "OTRO";
             customerDocumentNumber = CF_DOCUMENT_NUMBER;
             customerRazonSocial = CF_RAZON_SOCIAL;
             customerCondicionIva = CondicionIva.CONSUMIDOR_FINAL;
@@ -393,9 +398,100 @@ public class FiscalDocumentService {
                 .importeIva(document.getImporteIva())
                 .importeTotal(document.getImporteTotal())
                 .status(document.getStatus())
+                .rejectionReason(
+                        StringUtils.hasText(document.getRejectionReason())
+                                ? document.getRejectionReason()
+                                : extractRejectionReason(document.getAfipRawJson())
+                )
                 .pdfUrl(document.getPdfUrl())
                 .createdAt(document.getCreatedAt())
                 .build();
+    }
+
+    private String resolveRejectionReason(EmitInvoiceResult result) {
+        if (result.isAuthorized()) {
+            return null;
+        }
+
+        if (StringUtils.hasText(result.getRejectionReason())) {
+            return result.getRejectionReason().trim();
+        }
+
+        return extractRejectionReason(result.getRawJson());
+    }
+
+    private String extractRejectionReason(String afipRawJson) {
+        if (!StringUtils.hasText(afipRawJson)) {
+            return null;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(afipRawJson);
+
+            if ("MOCK".equals(root.path("provider").asText(null))) {
+                return null;
+            }
+
+            String explicitReason = root.path("rejectionReason").asText(null);
+            if (StringUtils.hasText(explicitReason)) {
+                return explicitReason.trim();
+            }
+
+            if ("S".equalsIgnoreCase(root.path("error").asText(""))) {
+                String fromErrors = extractTusFacturasErrors(root);
+                if (StringUtils.hasText(fromErrors)) {
+                    return fromErrors;
+                }
+                return "TusFacturas rechazó el comprobante";
+            }
+
+            return null;
+        } catch (Exception ex) {
+            return afipRawJson.length() <= 500 ? afipRawJson.trim() : afipRawJson.substring(0, 500).trim() + "...";
+        }
+    }
+
+    private String extractTusFacturasErrors(JsonNode root) {
+        JsonNode errores = root.path("errores");
+        if (errores.isArray() && !errores.isEmpty()) {
+            String joined = joinJsonTextArray(errores);
+            if (StringUtils.hasText(joined)) {
+                return joined;
+            }
+        }
+
+        JsonNode errorDetails = root.path("error_details");
+        if (errorDetails.isArray() && !errorDetails.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (JsonNode node : errorDetails) {
+                String text = node.path("text").asText("").trim();
+                if (StringUtils.hasText(text)) {
+                    if (!builder.isEmpty()) {
+                        builder.append("; ");
+                    }
+                    builder.append(text);
+                }
+            }
+            if (!builder.isEmpty()) {
+                return builder.toString();
+            }
+        }
+
+        return null;
+    }
+
+    private String joinJsonTextArray(JsonNode array) {
+        StringBuilder builder = new StringBuilder();
+        for (JsonNode node : array) {
+            String text = node.asText("").trim();
+            if (StringUtils.hasText(text)) {
+                if (!builder.isEmpty()) {
+                    builder.append("; ");
+                }
+                builder.append(text);
+            }
+        }
+        return builder.toString();
     }
 
     private record InvoiceTotals(BigDecimal neto, BigDecimal iva, BigDecimal total) {
