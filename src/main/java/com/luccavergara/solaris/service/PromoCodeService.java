@@ -9,7 +9,6 @@ import com.luccavergara.solaris.repository.OrganizationSubscriptionRepository;
 import com.luccavergara.solaris.repository.PromoCodeRedemptionRepository;
 import com.luccavergara.solaris.repository.PromoCodeRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,7 +24,6 @@ public class PromoCodeService {
     private final PromoCodeRedemptionRepository promoCodeRedemptionRepository;
     private final OrganizationRepository organizationRepository;
     private final OrganizationSubscriptionRepository subscriptionRepository;
-    private final OrganizationMembershipService organizationMembershipService;
     private final AuthenticatedUserService authenticatedUserService;
     private final EntitlementService entitlementService;
 
@@ -141,7 +139,6 @@ public class PromoCodeService {
     @Transactional
     public RedeemPromoCodeResponse redeemPromoCode(Long organizationId, RedeemPromoCodeRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
-        assertCanManageOrganizationPromoRedemption(organizationId, currentUser);
 
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
@@ -286,17 +283,6 @@ public class PromoCodeService {
                 && request.getValidUntil() != null
                 && !request.getValidUntil().isAfter(request.getValidFrom())) {
             throw new IllegalArgumentException("validUntil must be after validFrom");
-        }
-    }
-
-    private void assertCanManageOrganizationPromoRedemption(Long organizationId, User user) {
-        OrganizationMember membership = organizationMembershipService.resolveMembershipForOrganization(
-                user,
-                organizationId
-        );
-
-        if (membership.getRole().getPrivilegeLevel() < OrganizationMemberRole.ADMIN.getPrivilegeLevel()) {
-            throw new AccessDeniedException("Insufficient permissions to redeem promo codes for this organization");
         }
     }
 

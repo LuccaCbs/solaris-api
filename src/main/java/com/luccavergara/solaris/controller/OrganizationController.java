@@ -30,13 +30,13 @@ public class OrganizationController {
     private final OrganizationService organizationService;
 
     @GetMapping("/{orgId}")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationResponse getOrganization(@PathVariable Long orgId) {
         return organizationService.getOrganization(orgId);
     }
 
     @PatchMapping("/{orgId}")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationResponse updateOrganization(
             @PathVariable Long orgId,
             @Valid @RequestBody UpdateOrganizationRequest request
@@ -45,7 +45,7 @@ public class OrganizationController {
     }
 
     @PatchMapping("/{orgId}/members/{memberId}")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public void updateMemberRole(
             @PathVariable Long orgId,
             @PathVariable Long memberId,
@@ -55,7 +55,7 @@ public class OrganizationController {
     }
 
     @PatchMapping("/{orgId}/stores/{storeId}")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreResponse updateStore(
             @PathVariable Long orgId,
             @PathVariable Long storeId,
@@ -66,7 +66,7 @@ public class OrganizationController {
 
     @PostMapping("/{orgId}/invites")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationInviteResponse createInvite(
             @PathVariable Long orgId,
             @Valid @RequestBody OrganizationInviteRequest request
@@ -75,20 +75,20 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/members")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public List<OrganizationMemberResponse> listMembers(@PathVariable Long orgId) {
         return organizationInviteService.listMembers(orgId);
     }
 
     @GetMapping("/{orgId}/stores")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public List<StoreResponse> listStores(@PathVariable Long orgId) {
         return organizationInviteService.listStores(orgId);
     }
 
     @PostMapping("/{orgId}/stores")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreResponse createStore(
             @PathVariable Long orgId,
             @Valid @RequestBody CreateStoreRequest request
@@ -97,13 +97,13 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/entitlements")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
     public OrganizationEntitlementsResponse getEntitlements(@PathVariable Long orgId) {
         return entitlementService.getEntitlements(orgId);
     }
 
     @PostMapping("/{orgId}/promo-codes/redeem")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public RedeemPromoCodeResponse redeemPromoCode(
             @PathVariable Long orgId,
             @Valid @RequestBody RedeemPromoCodeRequest request
@@ -112,13 +112,13 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/subscription")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse getSubscription(@PathVariable("orgId") Long orgId) {
         return subscriptionService.getSubscription(orgId);
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/checkout")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
@@ -127,7 +127,7 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse purchaseStoreAddonMock(
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
@@ -137,7 +137,7 @@ public class OrganizationController {
 
     @DeleteMapping("/{orgId}/invites/{inviteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public void revokeInvite(
             @PathVariable Long orgId,
             @PathVariable Long inviteId
@@ -158,13 +158,13 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/fiscal-config")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public FiscalConfigResponse getFiscalConfig(@PathVariable Long orgId) {
         return fiscalDocumentService.getFiscalConfig(orgId);
     }
 
     @PutMapping("/{orgId}/fiscal-config")
-    @PreAuthorize("@organizationSecurity.hasMinimumRole(T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public FiscalConfigResponse updateFiscalConfig(
             @PathVariable Long orgId,
             @Valid @RequestBody FiscalConfigRequest request

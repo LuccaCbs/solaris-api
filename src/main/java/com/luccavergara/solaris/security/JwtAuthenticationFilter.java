@@ -76,15 +76,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtService.isTokenValid(jwt, userDetails)) {
                     OrganizationMemberRole organizationRole = jwtService.extractOrganizationRole(jwt).orElse(null);
                     Long organizationId = jwtService.extractOrganizationId(jwt).orElse(null);
+                    Long pathOrganizationId = extractOrganizationIdFromPath(request);
+                    Long roleResolutionOrgId = pathOrganizationId != null ? pathOrganizationId : organizationId;
                     Long storeId = jwtService.extractStoreId(jwt).orElse(null);
 
                     User user = userRepository.findByEmail(userEmail).orElse(null);
 
-                    if (user != null && organizationId != null) {
+                    if (user != null && roleResolutionOrgId != null) {
                         OrganizationMember membership = organizationMemberRepository
                                 .findByUserAndOrganizationIdAndStatus(
                                         user,
-                                        organizationId,
+                                        roleResolutionOrgId,
                                         OrganizationMemberStatus.ACTIVE
                                 )
                                 .orElse(null);
@@ -98,8 +100,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         }
                     }
 
-                    if (organizationId != null) {
-                        TenantContext.setOrganizationId(organizationId);
+                    Long tenantOrganizationId = pathOrganizationId != null ? pathOrganizationId : organizationId;
+
+                    if (tenantOrganizationId != null) {
+                        TenantContext.setOrganizationId(tenantOrganizationId);
                     }
 
                     if (organizationRole != null) {
@@ -163,5 +167,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private String toOrgAuthority(OrganizationMemberRole role) {
         return "ORG_" + role.name();
+    }
+
+    private Long extractOrganizationIdFromPath(HttpServletRequest request) {
+        String path = request.getServletPath();
+
+        if (path == null || !path.startsWith("/api/v1/organizations/")) {
+            return null;
+        }
+
+        String remainder = path.substring("/api/v1/organizations/".length());
+
+        if (remainder.isBlank() || remainder.startsWith("invites")) {
+            return null;
+        }
+
+        int slashIndex = remainder.indexOf('/');
+        String organizationIdPart = slashIndex >= 0 ? remainder.substring(0, slashIndex) : remainder;
+
+        try {
+            return Long.parseLong(organizationIdPart);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }
