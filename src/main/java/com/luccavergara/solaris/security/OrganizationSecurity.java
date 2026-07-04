@@ -1,6 +1,5 @@
 package com.luccavergara.solaris.security;
 
-import com.luccavergara.solaris.entity.OrganizationMember;
 import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.entity.OrganizationMemberStatus;
 import com.luccavergara.solaris.entity.User;
@@ -12,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -21,17 +21,32 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class OrganizationSecurity {
 
+    private static final ThreadLocal<String> LAST_DENIAL_REASON = new ThreadLocal<>();
+
     private final UserRepository userRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
+
+    public static String consumeLastDenialReason() {
+        String reason = LAST_DENIAL_REASON.get();
+        LAST_DENIAL_REASON.remove();
+        return reason;
+    }
 
     public boolean hasMinimumRole(OrganizationMemberRole minimumRole) {
         OrganizationMemberRole currentRole = resolveCurrentRole();
 
         if (currentRole == null) {
+            recordDenial("JWT role missing for required minimum role " + minimumRole);
             return false;
         }
 
-        return currentRole.getPrivilegeLevel() >= minimumRole.getPrivilegeLevel();
+        boolean allowed = currentRole.getPrivilegeLevel() >= minimumRole.getPrivilegeLevel();
+
+        if (!allowed) {
+            recordDenial("JWT role " + currentRole + " is below required minimum " + minimumRole);
+        }
+
+        return allowed;
     }
 
     public boolean belongsToOrganization(Object organizationId) {
@@ -46,19 +61,41 @@ public class OrganizationSecurity {
     }
 
     public boolean canAccessOrganization(Object organizationId, OrganizationMemberRole minimumRole) {
+        LAST_DENIAL_REASON.remove();
+
         Long orgId = toOrganizationId(organizationId);
 
         if (orgId == null) {
+            recordDenial("Organization id could not be resolved from request context");
             log.warn("Organization access denied: unresolved organization id {}", organizationId);
             return false;
         }
 
-        Optional<OrganizationMemberRole> membershipRole = resolveMembershipRole(orgId);
+        Optional<String> authenticatedEmail = resolveAuthenticatedEmail();
+
+        if (authenticatedEmail.isEmpty()) {
+            recordDenial("Request is not authenticated with a valid user session");
+            log.warn("Organization access denied for orgId={}: unauthenticated request", orgId);
+            return false;
+        }
+
+        Optional<OrganizationMemberRole> membershipRole = resolveMembershipRole(orgId, authenticatedEmail.get());
 
         if (membershipRole.isPresent()) {
             boolean allowed = membershipRole.get().getPrivilegeLevel() >= minimumRole.getPrivilegeLevel();
 
             if (!allowed) {
+                recordDenial(
+                        "User "
+                                + authenticatedEmail.get()
+                                + " has role "
+                                + membershipRole.get()
+                                + " in organization "
+                                + orgId
+                                + " but "
+                                + minimumRole
+                                + " is required"
+                );
                 log.warn(
                         "Organization access denied for orgId={}: role {} below minimum {}",
                         orgId,
@@ -73,6 +110,16 @@ public class OrganizationSecurity {
         boolean allowed = belongsToOrganization(orgId) && hasMinimumRole(minimumRole);
 
         if (!allowed) {
+            recordDenial(
+                    "No active membership for "
+                            + authenticatedEmail.get()
+                            + " in organization "
+                            + orgId
+                            + ". JWT orgId="
+                            + TenantContext.getOrganizationId()
+                            + ", JWT role="
+                            + TenantContext.getRole()
+            );
             log.warn(
                     "Organization access denied for orgId={}: jwtOrgId={} jwtRole={}",
                     orgId,
@@ -84,14 +131,19 @@ public class OrganizationSecurity {
         return allowed;
     }
 
-    private Optional<OrganizationMemberRole> resolveMembershipRole(Long organizationId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    private Optional<OrganizationMemberRole> resolveMembershipRole(Long organizationId, String email) {
+        Optional<OrganizationMemberRole> roleByEmail = organizationMemberRepository
+                .findRoleByOrganizationIdAndUserEmailIgnoreCaseAndStatus(
+                        organizationId,
+                        email,
+                        OrganizationMemberStatus.ACTIVE
+                );
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return Optional.empty();
+        if (roleByEmail.isPresent()) {
+            return roleByEmail;
         }
 
-        Optional<User> user = resolveAuthenticatedUser(authentication);
+        Optional<User> user = userRepository.findByEmailIgnoreCase(email);
 
         if (user.isEmpty()) {
             return Optional.empty();
@@ -103,23 +155,33 @@ public class OrganizationSecurity {
                         organizationId,
                         OrganizationMemberStatus.ACTIVE
                 )
-                .map(OrganizationMember::getRole);
+                .map(member -> member.getRole());
     }
 
-    private Optional<User> resolveAuthenticatedUser(Authentication authentication) {
+    private Optional<String> resolveAuthenticatedEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
+
         Object principal = authentication.getPrincipal();
 
         if (principal instanceof User user) {
-            return Optional.of(user);
+            return Optional.ofNullable(user.getEmail());
+        }
+
+        if (principal instanceof UserDetails userDetails) {
+            return Optional.ofNullable(userDetails.getUsername());
         }
 
         String email = authentication.getName();
 
-        if (email == null || email.isBlank()) {
+        if (email == null || email.isBlank() || "anonymousUser".equals(email)) {
             return Optional.empty();
         }
 
-        return userRepository.findByEmail(email);
+        return Optional.of(email);
     }
 
     private OrganizationMemberRole resolveCurrentRole() {
@@ -155,5 +217,9 @@ public class OrganizationSecurity {
         }
 
         return null;
+    }
+
+    private void recordDenial(String reason) {
+        LAST_DENIAL_REASON.set(reason);
     }
 }

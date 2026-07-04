@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.repository;
 
 import com.luccavergara.solaris.entity.OrganizationMember;
+import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.entity.OrganizationMemberStatus;
 import com.luccavergara.solaris.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -38,6 +39,20 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
     List<OrganizationMember> findAllByOrganizationId(Long organizationId);
 
     Optional<OrganizationMember> findByUserAndOrganizationId(User user, Long organizationId);
+
+    @Query("""
+            SELECT om.role
+            FROM OrganizationMember om
+            JOIN om.user u
+            WHERE om.organization.id = :organizationId
+              AND LOWER(u.email) = LOWER(:email)
+              AND om.status = :status
+            """)
+    Optional<OrganizationMemberRole> findRoleByOrganizationIdAndUserEmailIgnoreCaseAndStatus(
+            @Param("organizationId") Long organizationId,
+            @Param("email") String email,
+            @Param("status") OrganizationMemberStatus status
+    );
 
     Optional<OrganizationMember> findByIdAndOrganizationId(Long id, Long organizationId);
 

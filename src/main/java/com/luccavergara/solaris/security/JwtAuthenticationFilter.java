@@ -80,7 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Long roleResolutionOrgId = pathOrganizationId != null ? pathOrganizationId : organizationId;
                     Long storeId = jwtService.extractStoreId(jwt).orElse(null);
 
-                    User user = userRepository.findByEmail(userEmail).orElse(null);
+                    User user = userRepository.findByEmailIgnoreCase(userEmail).orElse(null);
 
                     if (user != null && roleResolutionOrgId != null) {
                         OrganizationMember membership = organizationMemberRepository
@@ -125,9 +125,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authorities.add(new SimpleGrantedAuthority(toOrgAuthority(organizationRole)));
                     }
 
+                    Object principal = user != null ? user : userDetails;
+
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
-                                    userDetails,
+                                    principal,
                                     null,
                                     new ArrayList<>(authorities)
                             );
@@ -170,8 +172,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private Long extractOrganizationIdFromPath(HttpServletRequest request) {
-        String path = request.getServletPath();
+        Long fromServletPath = parseOrganizationIdFromPath(request.getServletPath());
+        if (fromServletPath != null) {
+            return fromServletPath;
+        }
 
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+
+        if (contextPath != null && !contextPath.isBlank() && requestUri.startsWith(contextPath)) {
+            requestUri = requestUri.substring(contextPath.length());
+        }
+
+        return parseOrganizationIdFromPath(requestUri);
+    }
+
+    private Long parseOrganizationIdFromPath(String path) {
         if (path == null || !path.startsWith("/api/v1/organizations/")) {
             return null;
         }
