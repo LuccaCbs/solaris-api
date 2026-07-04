@@ -110,7 +110,7 @@ public class OrganizationController {
             @PathVariable Long orgId,
             @Valid @RequestBody RedeemPromoCodeRequest request
     ) {
-        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
+        organizationSecurity.requireBillingAccess(orgId);
         return promoCodeService.redeemPromoCode(orgId, request);
     }
 
@@ -125,7 +125,7 @@ public class OrganizationController {
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
-        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
+        organizationSecurity.requireBillingAccess(orgId);
         return subscriptionService.initiateStoreAddonCheckout(orgId, request);
     }
 
@@ -134,7 +134,7 @@ public class OrganizationController {
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
-        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
+        organizationSecurity.requireBillingAccess(orgId);
         return subscriptionService.purchaseStoreAddonMock(orgId, request);
     }
 

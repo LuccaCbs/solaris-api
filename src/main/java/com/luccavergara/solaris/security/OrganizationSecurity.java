@@ -145,6 +145,37 @@ public class OrganizationSecurity {
         }
     }
 
+    public void requireBillingAccess(Long organizationId) {
+        Long sessionOrgId = TenantContext.getOrganizationId();
+        OrganizationMemberRole sessionRole = TenantContext.getRole();
+
+        if (sessionOrgId == null) {
+            throw new AccessDeniedException(
+                    "No organization selected in your session. Sign out, sign in again, and select the organization."
+            );
+        }
+
+        if (!sessionOrgId.equals(organizationId)) {
+            throw new AccessDeniedException(
+                    "Session organization "
+                            + sessionOrgId
+                            + " does not match requested organization "
+                            + organizationId
+                            + ". Select the correct organization and try again."
+            );
+        }
+
+        if (sessionRole == null
+                || sessionRole.getPrivilegeLevel() < OrganizationMemberRole.ADMIN.getPrivilegeLevel()) {
+            throw new AccessDeniedException(
+                    "Role "
+                            + sessionRole
+                            + " cannot manage billing for organization "
+                            + organizationId
+            );
+        }
+    }
+
     private Optional<OrganizationMemberRole> resolveMembershipRole(Long organizationId, String email) {
         Optional<OrganizationMemberRole> roleByEmail = organizationMemberRepository
                 .findRoleByOrganizationIdAndUserEmailIgnoreCaseAndStatus(
