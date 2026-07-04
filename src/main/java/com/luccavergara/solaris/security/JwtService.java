@@ -22,6 +22,9 @@ public class JwtService {
     public static final String CLAIM_ORG_ID = "orgId";
     public static final String CLAIM_ROLE = "role";
     public static final String CLAIM_STORE_ID = "storeId";
+    public static final String CLAIM_USER_ID = "userId";
+    public static final String CLAIM_PURPOSE = "purpose";
+    public static final String PURPOSE_ORG_BILLING = "ORG_BILLING";
 
     @Value("${application.security.jwt.secret-key}")
     private String secretKey;
@@ -67,12 +70,20 @@ public class JwtService {
             Map<String, Object> extraClaims,
             UserDetails userDetails
     ) {
+        return generateToken(extraClaims, userDetails, jwtExpiration);
+    }
+
+    public String generateToken(
+            Map<String, Object> extraClaims,
+            UserDetails userDetails,
+            long expirationMs
+    ) {
         return Jwts
                 .builder()
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(getSignInKey())
                 .compact();
     }
@@ -99,6 +110,10 @@ public class JwtService {
     ) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
+    }
+
+    public Claims parseClaims(String token) {
+        return extractAllClaims(token);
     }
 
     private Claims extractAllClaims(String token) {

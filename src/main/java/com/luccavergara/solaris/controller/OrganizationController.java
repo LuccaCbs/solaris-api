@@ -3,7 +3,9 @@ package com.luccavergara.solaris.controller;
 import com.luccavergara.solaris.dto.*;
 import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.security.OrganizationSecurity;
+import com.luccavergara.solaris.service.BillingSessionService;
 import com.luccavergara.solaris.service.EntitlementService;
+import com.luccavergara.solaris.service.AuthenticatedUserService;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
 import com.luccavergara.solaris.service.OrganizationService;
@@ -31,6 +33,8 @@ public class OrganizationController {
     private final StoreService storeService;
     private final OrganizationService organizationService;
     private final OrganizationSecurity organizationSecurity;
+    private final BillingSessionService billingSessionService;
+    private final AuthenticatedUserService authenticatedUserService;
 
     @GetMapping("/{orgId}")
     @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
@@ -112,6 +116,15 @@ public class OrganizationController {
     ) {
         organizationSecurity.requireBillingAccess(orgId);
         return promoCodeService.redeemPromoCode(orgId, request);
+    }
+
+    @GetMapping("/{orgId}/billing/session-token")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public BillingSessionTokenResponse getBillingSessionToken(@PathVariable Long orgId) {
+        return billingSessionService.createSessionToken(
+                orgId,
+                authenticatedUserService.getCurrentUser()
+        );
     }
 
     @GetMapping("/{orgId}/subscription")
