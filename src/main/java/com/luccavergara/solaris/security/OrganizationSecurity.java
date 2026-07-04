@@ -3,11 +3,13 @@ package com.luccavergara.solaris.security;
 import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.entity.OrganizationMemberStatus;
 import com.luccavergara.solaris.entity.User;
+import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.repository.OrganizationMemberRepository;
 import com.luccavergara.solaris.repository.UserRepository;
 import com.luccavergara.solaris.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -129,6 +131,18 @@ public class OrganizationSecurity {
         }
 
         return allowed;
+    }
+
+    public void requireOrganizationAccess(Long organizationId, OrganizationMemberRole minimumRole) {
+        if (!canAccessOrganization(organizationId, minimumRole)) {
+            String reason = consumeLastDenialReason();
+            throw new AccessDeniedException(
+                    reason != null && !reason.isBlank()
+                            ? reason
+                            : "You do not have permission to perform this action on organization "
+                            + organizationId
+            );
+        }
     }
 
     private Optional<OrganizationMemberRole> resolveMembershipRole(Long organizationId, String email) {

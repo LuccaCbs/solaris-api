@@ -1,6 +1,8 @@
 package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.*;
+import com.luccavergara.solaris.entity.OrganizationMemberRole;
+import com.luccavergara.solaris.security.OrganizationSecurity;
 import com.luccavergara.solaris.service.EntitlementService;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
@@ -28,6 +30,7 @@ public class OrganizationController {
     private final PromoCodeService promoCodeService;
     private final StoreService storeService;
     private final OrganizationService organizationService;
+    private final OrganizationSecurity organizationSecurity;
 
     @GetMapping("/{orgId}")
     @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
@@ -103,11 +106,11 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/promo-codes/redeem")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public RedeemPromoCodeResponse redeemPromoCode(
             @PathVariable Long orgId,
             @Valid @RequestBody RedeemPromoCodeRequest request
     ) {
+        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
         return promoCodeService.redeemPromoCode(orgId, request);
     }
 
@@ -118,20 +121,20 @@ public class OrganizationController {
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/checkout")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public StoreAddonCheckoutResponse initiateStoreAddonCheckout(
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
+        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
         return subscriptionService.initiateStoreAddonCheckout(orgId, request);
     }
 
     @PostMapping("/{orgId}/subscription/store-addon/mock-purchase")
-    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
     public OrganizationSubscriptionResponse purchaseStoreAddonMock(
             @PathVariable("orgId") Long orgId,
             @Valid @RequestBody StoreAddonCheckoutRequest request
     ) {
+        organizationSecurity.requireOrganizationAccess(orgId, OrganizationMemberRole.ADMIN);
         return subscriptionService.purchaseStoreAddonMock(orgId, request);
     }
 
