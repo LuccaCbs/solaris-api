@@ -1,6 +1,8 @@
 package com.luccavergara.solaris.dto;
 
 import com.luccavergara.solaris.entity.CondicionIva;
+import com.luccavergara.solaris.entity.CountryCode;
+import com.luccavergara.solaris.entity.FiscalJurisdiction;
 import com.luccavergara.solaris.entity.FiscalProviderType;
 import lombok.*;
 
@@ -17,4 +19,6 @@ public class FiscalConfigResponse {
     private Integer fiscalPuntoVenta;
     private FiscalProviderType fiscalProvider;
     private boolean hasFiscalApiKey;
+    private CountryCode countryCode;
+    private FiscalJurisdiction fiscalJurisdiction;
 }

@@ -234,6 +234,7 @@ public class SubscriptionService {
                 .paymentProviderDisplayName(paymentProvider.displayName())
                 .countryCode(organization.getCountryCode())
                 .billingJurisdiction(organization.getBillingJurisdiction())
+                .fiscalJurisdiction(organization.getFiscalJurisdiction())
                 .defaultCurrency(organization.getDefaultCurrency())
                 .trialEndsAt(subscription.getTrialEndsAt())
                 .currentPeriodStart(subscription.getCurrentPeriodStart())

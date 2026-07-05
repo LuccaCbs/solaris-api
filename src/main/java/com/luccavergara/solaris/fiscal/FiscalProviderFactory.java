@@ -1,6 +1,7 @@
 package com.luccavergara.solaris.fiscal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.luccavergara.solaris.entity.FiscalJurisdiction;
 import com.luccavergara.solaris.entity.FiscalProviderType;
 import com.luccavergara.solaris.entity.Organization;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,14 @@ public class FiscalProviderFactory {
                 : FiscalProviderType.MOCK;
 
         if (configured == FiscalProviderType.TUSFACTURAS) {
+            if (organization.getFiscalJurisdiction() == FiscalJurisdiction.ES_VERIFACTU) {
+                log.warn(
+                        "Organization {} is ES_VERIFACTU but TUSFACTURAS was configured — using MOCK provider",
+                        organization.getId()
+                );
+                return mockFiscalProvider;
+            }
+
             return TusFacturasCredentials.parse(organization.getFiscalApiKey(), objectMapper)
                     .<FiscalProvider>map(credentials -> new TusFacturasAwareProvider(tusFacturasFiscalProvider, credentials))
                     .orElseGet(() -> {

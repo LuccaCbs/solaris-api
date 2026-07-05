@@ -14,6 +14,7 @@ import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import com.luccavergara.solaris.tenant.TenantContext;
+import com.luccavergara.solaris.util.SpainTaxIdValidator;
 import com.luccavergara.solaris.util.TaxIdNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class FiscalDocumentService {
 
     private static final String CF_DOCUMENT_NUMBER = "0";
     private static final String CF_RAZON_SOCIAL = "Consumidor Final";
+    private static final String ES_CF_RAZON_SOCIAL = "Cliente final";
     private static final long MAX_NUMERO_COMPROBANTE = 99_999_999L;
 
     private final FiscalDocumentRepository fiscalDocumentRepository;
@@ -59,14 +61,19 @@ public class FiscalDocumentService {
 
         validateFiscalConfig(organization);
 
-        Integer puntoVenta = resolvePuntoVenta(organization);
+        boolean spain = isSpainJurisdiction(organization);
+        Integer puntoVenta = spain ? resolveSpainSeries(organization) : resolvePuntoVenta(organization);
         Store store = resolveStore(organization);
         Customer customer = resolveCustomer(request != null ? request.getCustomerId() : null);
 
-        TipoComprobante tipoComprobante = FiscalInvoiceCalculator.resolveTipoComprobante(organization.getCondicionIva());
-        boolean includesIvaBreakdown = tipoComprobante == TipoComprobante.FACTURA_B;
+        TipoComprobante tipoComprobante = spain
+                ? TipoComprobante.FACTURA_B
+                : FiscalInvoiceCalculator.resolveTipoComprobante(organization.getCondicionIva());
+        boolean includesIvaBreakdown = spain || tipoComprobante == TipoComprobante.FACTURA_B;
 
-        InvoiceTotals totals = calculateTotals(sale, includesIvaBreakdown);
+        InvoiceTotals totals = spain
+                ? calculateSpainTotals(sale)
+                : calculateTotals(sale, includesIvaBreakdown);
         Long nextNumero = fiscalDocumentRepository.findMaxNumeroComprobante(
                 organization.getId(),
                 puntoVenta,
@@ -87,7 +94,8 @@ public class FiscalDocumentService {
                 nextNumero,
                 totals,
                 sale,
-                includesIvaBreakdown
+                includesIvaBreakdown,
+                spain
         );
 
         FiscalProvider provider = fiscalProviderFactory.resolve(organization);
@@ -168,12 +176,24 @@ public class FiscalDocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
         if (request.getCuit() != null) {
-            String normalizedCuit = TaxIdNormalizer.normalizeCuit(request.getCuit());
-            if (StringUtils.hasText(normalizedCuit)) {
-                validateCuitFormat(normalizedCuit);
-                organization.setCuit(normalizedCuit);
+            if (isSpainJurisdiction(organization)) {
+                String normalizedNif = SpainTaxIdValidator.normalize(request.getCuit());
+                if (StringUtils.hasText(normalizedNif)) {
+                    if (!SpainTaxIdValidator.isValid(normalizedNif)) {
+                        throw new IllegalArgumentException("NIF/CIF format is invalid");
+                    }
+                    organization.setCuit(normalizedNif);
+                } else {
+                    organization.setCuit(null);
+                }
             } else {
-                organization.setCuit(null);
+                String normalizedCuit = TaxIdNormalizer.normalizeCuit(request.getCuit());
+                if (StringUtils.hasText(normalizedCuit)) {
+                    validateCuitFormat(normalizedCuit);
+                    organization.setCuit(normalizedCuit);
+                } else {
+                    organization.setCuit(null);
+                }
             }
         }
 
@@ -190,6 +210,9 @@ public class FiscalDocumentService {
         }
 
         if (request.getFiscalProvider() != null) {
+            if (isSpainJurisdiction(organization) && request.getFiscalProvider() == FiscalProviderType.TUSFACTURAS) {
+                throw new IllegalArgumentException("TusFacturas is not available for Spanish organizations");
+            }
             organization.setFiscalProvider(request.getFiscalProvider());
         }
 
@@ -202,6 +225,11 @@ public class FiscalDocumentService {
     }
 
     private void validateFiscalConfig(Organization organization) {
+        if (isSpainJurisdiction(organization)) {
+            validateSpainFiscalConfig(organization);
+            return;
+        }
+
         if (!StringUtils.hasText(TaxIdNormalizer.normalizeCuit(organization.getCuit()))) {
             throw new IllegalStateException("Organization CUIT is required for invoicing");
         }
@@ -209,6 +237,29 @@ public class FiscalDocumentService {
         if (resolvePuntoVenta(organization) == null) {
             throw new IllegalStateException("Punto de venta is required for invoicing");
         }
+    }
+
+    private void validateSpainFiscalConfig(Organization organization) {
+        String nif = SpainTaxIdValidator.normalize(organization.getCuit());
+        if (!SpainTaxIdValidator.isValid(nif)) {
+            throw new IllegalStateException("Organization NIF/CIF is required for invoicing");
+        }
+
+        if (!StringUtils.hasText(organization.getRazonSocial())) {
+            throw new IllegalStateException("Business name is required for invoicing");
+        }
+    }
+
+    private boolean isSpainJurisdiction(Organization organization) {
+        return organization.getFiscalJurisdiction() == FiscalJurisdiction.ES_VERIFACTU;
+    }
+
+    private Integer resolveSpainSeries(Organization organization) {
+        if (organization.getFiscalPuntoVenta() != null) {
+            return organization.getFiscalPuntoVenta();
+        }
+
+        return 1;
     }
 
     private Integer resolvePuntoVenta(Organization organization) {
@@ -251,6 +302,13 @@ public class FiscalDocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
     }
 
+    private InvoiceTotals calculateSpainTotals(Sale sale) {
+        SpainFiscalInvoiceCalculator.InvoiceTotals totals =
+                SpainFiscalInvoiceCalculator.calculateFromTotal(sale.getTotalAmount());
+
+        return new InvoiceTotals(totals.neto(), totals.iva(), totals.total());
+    }
+
     private InvoiceTotals calculateTotals(Sale sale, boolean includesIvaBreakdown) {
         FiscalInvoiceCalculator.InvoiceAmounts totals =
                 new FiscalInvoiceCalculator.InvoiceAmounts(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
@@ -280,7 +338,8 @@ public class FiscalDocumentService {
             Long numeroComprobante,
             InvoiceTotals totals,
             Sale sale,
-            boolean includesIvaBreakdown
+            boolean includesIvaBreakdown,
+            boolean spain
     ) {
         String customerDocumentType;
         String customerDocumentNumber;
@@ -291,19 +350,20 @@ public class FiscalDocumentService {
 
         if (customer != null) {
             customerDocumentType = customer.getDocumentType().name();
-            customerDocumentNumber = TaxIdNormalizer.normalizeDocumentNumber(
-                    customer.getDocumentType(),
-                    customer.getDocumentNumber()
-            );
+            customerDocumentNumber = spain
+                    ? SpainTaxIdValidator.normalize(customer.getDocumentNumber())
+                    : TaxIdNormalizer.normalizeDocumentNumber(
+                            customer.getDocumentType(),
+                            customer.getDocumentNumber()
+                    );
             customerRazonSocial = customer.getRazonSocial();
             customerCondicionIva = customer.getCondicionIva();
             customerEmail = customer.getEmail();
             customerAddress = customer.getAddress();
         } else {
-            // TusFacturas requires OTRO/0 for consumidor final without buyer data (not DNI/0).
-            customerDocumentType = "OTRO";
+            customerDocumentType = spain ? "NIF" : "OTRO";
             customerDocumentNumber = CF_DOCUMENT_NUMBER;
-            customerRazonSocial = CF_RAZON_SOCIAL;
+            customerRazonSocial = spain ? ES_CF_RAZON_SOCIAL : CF_RAZON_SOCIAL;
             customerCondicionIva = CondicionIva.CONSUMIDOR_FINAL;
             customerEmail = null;
             customerAddress = null;
@@ -338,7 +398,9 @@ public class FiscalDocumentService {
         }
 
         return EmitInvoiceCommand.builder()
-                .emitterCuit(TaxIdNormalizer.normalizeCuit(organization.getCuit()))
+                .emitterCuit(spain
+                        ? SpainTaxIdValidator.normalize(organization.getCuit())
+                        : TaxIdNormalizer.normalizeCuit(organization.getCuit()))
                 .emitterRazonSocial(organization.getRazonSocial())
                 .puntoVenta(puntoVenta)
                 .numeroComprobante(numeroComprobante)
@@ -385,12 +447,16 @@ public class FiscalDocumentService {
 
     private FiscalConfigResponse mapToFiscalConfigResponse(Organization organization) {
         return FiscalConfigResponse.builder()
-                .cuit(TaxIdNormalizer.normalizeCuit(organization.getCuit()))
+                .cuit(isSpainJurisdiction(organization)
+                        ? SpainTaxIdValidator.normalize(organization.getCuit())
+                        : TaxIdNormalizer.normalizeCuit(organization.getCuit()))
                 .razonSocial(organization.getRazonSocial())
                 .condicionIva(organization.getCondicionIva())
                 .fiscalPuntoVenta(organization.getFiscalPuntoVenta())
                 .fiscalProvider(organization.getFiscalProvider())
                 .hasFiscalApiKey(StringUtils.hasText(organization.getFiscalApiKey()))
+                .countryCode(organization.getCountryCode())
+                .fiscalJurisdiction(organization.getFiscalJurisdiction())
                 .build();
     }
 
