@@ -38,6 +38,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
     private final SystemSettingsService systemSettingsService;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
@@ -172,13 +173,14 @@ public class ProductService {
     }
 
     private Long resolveCategoryIdFromName(String categoryName) {
-        if (categoryName == null || categoryName.isBlank()) {
-            return null;
-        }
-
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        Category category = tenantQueryService.findCategoryByNameIgnoreCase(currentUser, categoryName.trim())
+        if (categoryName == null || categoryName.isBlank()) {
+            return categoryService.getOrCreateDefaultCategory(currentUser).getId();
+        }
+
+        Category category = tenantQueryService.findCategoryByNameIgnoreCase(categoryName.trim())
+                .filter(value -> isCategoryAccessible(value, currentUser))
                 .orElseGet(() -> {
                     Category newCategory = Category.builder()
                             .name(categoryName.trim())
@@ -210,7 +212,7 @@ public class ProductService {
     }
 
     private ResolvedBarcode generateAutomaticBarcode(User currentUser) {
-        int maxSequence = tenantQueryService.findProductsByBarcodePrefix("779999")
+        int maxSequence = productRepository.findByBarcodeStartingWith("779999")
                 .stream()
                 .map(Product::getBarcode)
                 .filter(value -> value.startsWith("779999") && value.length() == 13)
@@ -220,8 +222,23 @@ public class ProductService {
                 .max()
                 .orElse(0);
 
-        String barcode = BarcodeUtils.generateInternalEan13(maxSequence + 1);
-        return new ResolvedBarcode(barcode, BarcodeFormat.EAN_13);
+        for (int offset = 1; offset <= 1000; offset++) {
+            String barcode = BarcodeUtils.generateInternalEan13(maxSequence + offset);
+
+            if (!isBarcodeTaken(barcode, currentUser)) {
+                return new ResolvedBarcode(barcode, BarcodeFormat.EAN_13);
+            }
+        }
+
+        throw new IllegalStateException("Could not generate a unique internal barcode");
+    }
+
+    private boolean isBarcodeTaken(String barcode, User currentUser) {
+        if (productRepository.existsByBarcode(barcode)) {
+            return true;
+        }
+
+        return tenantQueryService.existsProductByBarcode(barcode);
     }
 
     private record ResolvedBarcode(String value, BarcodeFormat format) {
@@ -229,27 +246,23 @@ public class ProductService {
 
     private Category resolveCategory(Long categoryId, User currentUser) {
         if (categoryId == null) {
-            return getOrCreateDefaultCategory(currentUser);
+            throw new IllegalArgumentException("Category is required");
         }
 
-        return tenantQueryService.findCategoryById(categoryId)
+        Category category = tenantQueryService.findCategoryById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        if (!isCategoryAccessible(category, currentUser)) {
+            throw new ResourceNotFoundException("Category not found");
+        }
+
+        return category;
     }
 
-    private Category getOrCreateDefaultCategory(User currentUser) {
-        return tenantQueryService.findCategoryByNameIgnoreCase(currentUser, "General")
-                .orElseGet(() -> {
-                    Category category = Category.builder()
-                            .name("General")
-                            .description("Default category")
-                            .createdAt(LocalDateTime.now())
-                            .systemCategory(true)
-                            .user(currentUser)
-                            .build();
-                    tenantScopeService.getOrganizationReference(currentUser)
-                            .ifPresent(category::setOrganization);
-                    return categoryRepository.save(category);
-                });
+    private boolean isCategoryAccessible(Category category, User currentUser) {
+        return tenantScopeService.resolveOrganizationId(currentUser)
+                .map(orgId -> category.getOrganization() != null && orgId.equals(category.getOrganization().getId()))
+                .orElseGet(() -> category.getUser().getId().equals(currentUser.getId()));
     }
 
     private boolean updateExistingProductIfPresent(ProductRequest request) {
@@ -270,7 +283,7 @@ public class ProductService {
         );
 
         if (!existingProduct.getBarcode().equals(barcode.value())
-                && tenantQueryService.existsProductByBarcode(barcode.value())) {
+                && isBarcodeTaken(barcode.value(), currentUser)) {
             throw new DuplicateResourceException("Product barcode already exists");
         }
 
@@ -324,7 +337,7 @@ public class ProductService {
                 currentUser
         );
 
-        if (tenantQueryService.existsProductByBarcode(barcode.value())) {
+        if (isBarcodeTaken(barcode.value(), currentUser)) {
             throw new DuplicateResourceException("Product barcode already exists");
         }
 
@@ -479,7 +492,7 @@ public class ProductService {
         );
 
         if (!product.getBarcode().equals(barcode.value())
-                && tenantQueryService.existsProductByBarcode(barcode.value())) {
+                && isBarcodeTaken(barcode.value(), currentUser)) {
             throw new DuplicateResourceException("Product barcode already exists");
         }
 

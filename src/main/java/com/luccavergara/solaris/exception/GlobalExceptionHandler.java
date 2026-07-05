@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
-        String message = "A record with the same unique value already exists";
+        String message = resolveDataIntegrityMessage(ex);
 
         ErrorResponse error = ErrorResponse.builder()
                 .message(message)
@@ -42,6 +42,35 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    private String resolveDataIntegrityMessage(DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String details = cause != null ? cause.getMessage() : null;
+
+        if (details == null || details.isBlank()) {
+            return "A record with the same unique value already exists";
+        }
+
+        String normalized = details.toLowerCase();
+
+        if (normalized.contains("uk_products_organization_barcode") || normalized.contains("(barcode)")) {
+            return "Product barcode already exists";
+        }
+
+        if (normalized.contains("uk_products_organization_sku") || normalized.contains("(sku)")) {
+            return "Product barcode already exists";
+        }
+
+        if (normalized.contains("products_sku_key") || normalized.contains("products_barcode_key")) {
+            return "Product barcode already exists";
+        }
+
+        if (normalized.contains("category")) {
+            return "Category name already exists";
+        }
+
+        return "A record with the same unique value already exists";
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

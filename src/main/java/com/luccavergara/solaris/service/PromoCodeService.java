@@ -26,6 +26,7 @@ public class PromoCodeService {
     private final OrganizationSubscriptionRepository subscriptionRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final EntitlementService entitlementService;
+    private final OrganizationSeedService organizationSeedService;
 
     @Transactional(readOnly = true)
     public List<PromoCodeResponse> listPromoCodes() {
@@ -217,6 +218,17 @@ public class PromoCodeService {
             LocalDateTime now,
             LocalDateTime accessValidUntil
     ) {
+        if (promoCode.getPromoType() == PromoCodeType.GRANT_PLAN) {
+            applyGrantPlanSideEffects(promoCode, organization, now, accessValidUntil);
+            return;
+        }
+
+        if (promoCode.getPromoType() == PromoCodeType.GRANT_MODULE
+                && promoCode.getGrantModuleCode() == ModuleCode.INVENTORY) {
+            organizationSeedService.ensureDefaultCategory(organization.getId());
+            return;
+        }
+
         if (promoCode.getPromoType() != PromoCodeType.EXTEND_ACCESS) {
             return;
         }
@@ -256,6 +268,35 @@ public class PromoCodeService {
 
         subscription.setUpdatedAt(now);
         subscriptionRepository.save(subscription);
+    }
+
+    private void applyGrantPlanSideEffects(
+            PromoCode promoCode,
+            Organization organization,
+            LocalDateTime now,
+            LocalDateTime accessValidUntil
+    ) {
+        OrganizationSubscription subscription = subscriptionRepository.findByOrganization(organization)
+                .orElseThrow(() -> new IllegalStateException("Organization subscription not found"));
+
+        SubscriptionPlanCode planCode = promoCode.getGrantPlanCode() != null
+                ? promoCode.getGrantPlanCode()
+                : subscription.getPlanCode();
+
+        subscription.setPlanCode(planCode);
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setBillingProvider(BillingProvider.NONE);
+        subscription.setCurrentPeriodStart(now);
+        subscription.setCurrentPeriodEnd(
+                accessValidUntil != null
+                        ? accessValidUntil
+                        : now.plusDays(promoCode.getDurationDays() != null ? promoCode.getDurationDays() : 30)
+        );
+        subscription.setTrialEndsAt(null);
+        subscription.setUpdatedAt(now);
+        subscriptionRepository.save(subscription);
+
+        organizationSeedService.seedForActivatedPlan(organization.getId(), planCode);
     }
 
     private LocalDateTime resolveAccessValidUntil(PromoCode promoCode, LocalDateTime now) {

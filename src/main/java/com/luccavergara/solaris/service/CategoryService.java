@@ -6,9 +6,11 @@ import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
+import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 
@@ -131,19 +133,38 @@ public class CategoryService {
     }
 
     public Category getOrCreateDefaultCategory(User user) {
-        return tenantQueryService.findCategoryByNameIgnoreCase(user, DEFAULT_CATEGORY_NAME)
-                .orElseGet(() -> {
-                    Category category = Category.builder()
-                            .name(DEFAULT_CATEGORY_NAME)
-                            .description("Default category")
-                            .createdAt(LocalDateTime.now())
-                            .systemCategory(true)
-                            .user(user)
-                            .build();
-                    tenantScopeService.getOrganizationReference(user)
-                            .ifPresent(category::setOrganization);
-                    return categoryRepository.save(category);
-                });
+        return tenantScopeService.resolveOrganizationId(user)
+                .map(orgId -> ensureOrganizationDefaultCategory(orgId, user))
+                .orElseGet(() -> getOrCreateUserDefaultCategory(user));
+    }
+
+    @Transactional
+    public Category ensureOrganizationDefaultCategory(Long organizationId, User ownerUser) {
+        return categoryRepository.findByNameIgnoreCaseAndOrganizationId(DEFAULT_CATEGORY_NAME, organizationId)
+                .orElseGet(() -> categoryRepository.save(
+                        Category.builder()
+                                .name(DEFAULT_CATEGORY_NAME)
+                                .description("Default category")
+                                .createdAt(LocalDateTime.now())
+                                .systemCategory(true)
+                                .user(ownerUser)
+                                .organization(Organization.builder().id(organizationId).build())
+                                .createdBy(ownerUser)
+                                .build()
+                ));
+    }
+
+    private Category getOrCreateUserDefaultCategory(User user) {
+        return categoryRepository.findByNameIgnoreCaseAndUser(DEFAULT_CATEGORY_NAME, user)
+                .orElseGet(() -> categoryRepository.save(
+                        Category.builder()
+                                .name(DEFAULT_CATEGORY_NAME)
+                                .description("Default category")
+                                .createdAt(LocalDateTime.now())
+                                .systemCategory(true)
+                                .user(user)
+                                .build()
+                ));
     }
 
     private void ensureDefaultCategoryExists(User user) {

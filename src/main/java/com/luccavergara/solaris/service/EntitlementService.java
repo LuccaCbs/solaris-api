@@ -105,7 +105,25 @@ public class EntitlementService {
         );
         planModules.add(ModuleCode.CORE);
 
-        Set<ModuleCode> addonModules = new LinkedHashSet<>(
+        Set<ModuleCode> optionalPlanModules = PlanModulePolicy.resolveOptionalPlanModules(
+                effectivePlan,
+                planModules
+        );
+
+        Set<ModuleCode> autoActivePlanModules = new LinkedHashSet<>(planModules);
+        autoActivePlanModules.removeAll(optionalPlanModules);
+
+        Set<ModuleCode> organizationOptInModules = new LinkedHashSet<>(
+                organizationModuleAddonRepository.findActiveModuleCodesByOrganizationIdAndSourceType(
+                        organizationId,
+                        ModuleAddonSourceType.ORGANIZATION,
+                        ModuleAddonStatus.ACTIVE,
+                        now
+                )
+        );
+        organizationOptInModules.retainAll(optionalPlanModules);
+
+        Set<ModuleCode> allAddonModules = new LinkedHashSet<>(
                 organizationModuleAddonRepository.findActiveModuleCodesByOrganizationId(
                         organizationId,
                         ModuleAddonStatus.ACTIVE,
@@ -113,17 +131,21 @@ public class EntitlementService {
                 )
         );
 
+        Set<ModuleCode> otherAddonModules = new LinkedHashSet<>(allAddonModules);
+        otherAddonModules.removeAll(organizationOptInModules);
+
         Set<ModuleCode> promoModules = resolvePromoModules(organizationId, now);
 
         Set<ModuleCode> activeModules = EnumSet.noneOf(ModuleCode.class);
-        activeModules.addAll(planModules);
-        activeModules.addAll(addonModules);
+        activeModules.addAll(autoActivePlanModules);
+        activeModules.addAll(organizationOptInModules);
+        activeModules.addAll(otherAddonModules);
         activeModules.addAll(promoModules);
         activeModules.add(ModuleCode.CORE);
 
         return OrganizationEntitlementsResponse.builder()
                 .planModules(toSortedList(planModules))
-                .addonModules(toSortedList(addonModules))
+                .addonModules(toSortedList(allAddonModules))
                 .promoModules(toSortedList(promoModules))
                 .activeModules(toSortedList(activeModules))
                 .build();

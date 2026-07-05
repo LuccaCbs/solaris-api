@@ -8,6 +8,7 @@ import com.luccavergara.solaris.service.EntitlementService;
 import com.luccavergara.solaris.service.AuthenticatedUserService;
 import com.luccavergara.solaris.service.FiscalDocumentService;
 import com.luccavergara.solaris.service.OrganizationInviteService;
+import com.luccavergara.solaris.service.OrganizationModulePreferenceService;
 import com.luccavergara.solaris.service.OrganizationService;
 import com.luccavergara.solaris.service.PromoCodeService;
 import com.luccavergara.solaris.service.StoreService;
@@ -35,6 +36,7 @@ public class OrganizationController {
     private final OrganizationSecurity organizationSecurity;
     private final BillingSessionService billingSessionService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final OrganizationModulePreferenceService organizationModulePreferenceService;
 
     @GetMapping("/{orgId}")
     @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
@@ -107,6 +109,21 @@ public class OrganizationController {
     @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).CASHIER)")
     public OrganizationEntitlementsResponse getEntitlements(@PathVariable Long orgId) {
         return entitlementService.getEntitlements(orgId);
+    }
+
+    @GetMapping("/{orgId}/module-preferences")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationModulePreferencesResponse getModulePreferences(@PathVariable Long orgId) {
+        return organizationModulePreferenceService.getPreferences(orgId);
+    }
+
+    @PutMapping("/{orgId}/module-preferences")
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public OrganizationModulePreferencesResponse updateModulePreferences(
+            @PathVariable Long orgId,
+            @Valid @RequestBody UpdateOrganizationModulePreferencesRequest request
+    ) {
+        return organizationModulePreferenceService.updatePreferences(orgId, request);
     }
 
     @PostMapping("/{orgId}/promo-codes/redeem")

@@ -25,4 +25,26 @@ public interface OrganizationModuleAddonRepository extends JpaRepository<Organiz
             @Param("status") ModuleAddonStatus status,
             @Param("now") LocalDateTime now
     );
+
+    @Query("""
+            SELECT addon.moduleCode
+            FROM OrganizationModuleAddon addon
+            WHERE addon.organization.id = :organizationId
+              AND addon.sourceType = :sourceType
+              AND addon.status = :status
+              AND addon.validFrom <= :now
+              AND (addon.validUntil IS NULL OR addon.validUntil > :now)
+            """)
+    List<ModuleCode> findActiveModuleCodesByOrganizationIdAndSourceType(
+            @Param("organizationId") Long organizationId,
+            @Param("sourceType") com.luccavergara.solaris.entity.ModuleAddonSourceType sourceType,
+            @Param("status") ModuleAddonStatus status,
+            @Param("now") LocalDateTime now
+    );
+
+    java.util.Optional<OrganizationModuleAddon> findByOrganizationIdAndModuleCodeAndSourceType(
+            Long organizationId,
+            ModuleCode moduleCode,
+            com.luccavergara.solaris.entity.ModuleAddonSourceType sourceType
+    );
 }

@@ -47,6 +47,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByOrganizationIdAndBarcodeStartingWith(Long organizationId, String barcodePrefix);
 
+    List<Product> findByBarcodeStartingWith(String barcodePrefix);
+
+    boolean existsByBarcode(String barcode);
+
     boolean existsByNameIgnoreCaseAndUser(String name, User user);
 
     boolean existsByNameIgnoreCaseAndOrganizationId(String name, Long organizationId);

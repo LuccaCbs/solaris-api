@@ -12,5 +12,8 @@ public enum ModuleAddonSourceType {
     OPERATOR,
 
     /** Legacy migration or internal adjustment. */
-    SYSTEM
+    SYSTEM,
+
+    /** Enabled by the organization owner through self-service preferences. */
+    ORGANIZATION
 }
