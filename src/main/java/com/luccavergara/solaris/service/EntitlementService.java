@@ -88,6 +88,15 @@ public class EntitlementService {
             Long organizationId,
             OrganizationSubscription subscription
     ) {
+        if (subscription.getStatus() == SubscriptionStatus.PENDING_PLAN) {
+            return OrganizationEntitlementsResponse.builder()
+                    .planModules(toSortedList(EnumSet.of(ModuleCode.CORE)))
+                    .addonModules(List.of())
+                    .promoModules(List.of())
+                    .activeModules(toSortedList(EnumSet.of(ModuleCode.CORE)))
+                    .build();
+        }
+
         LocalDateTime now = LocalDateTime.now();
         SubscriptionPlanCode effectivePlan = resolveEffectivePlanCode(subscription);
 

@@ -59,7 +59,7 @@ public class OrganizationMigrationService {
                             .build()
             );
 
-            subscriptionService.ensureSubscription(organization);
+            subscriptionService.createLegacyTrialSubscription(organization);
 
             organizationMemberRepository.save(
                     OrganizationMember.builder()

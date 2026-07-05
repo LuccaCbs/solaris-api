@@ -1,20 +1,28 @@
 package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.AccessContextResponse;
+import com.luccavergara.solaris.dto.AuthenticationResponse;
+import com.luccavergara.solaris.dto.OnboardingStatusResponse;
+import com.luccavergara.solaris.dto.SetupOrganizationRequest;
 import com.luccavergara.solaris.entity.OrganizationMemberRole;
 import com.luccavergara.solaris.entity.OrganizationMemberStatus;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.repository.OrganizationMemberRepository;
 import com.luccavergara.solaris.security.OrganizationSecurity;
 import com.luccavergara.solaris.service.AuthenticatedUserService;
+import com.luccavergara.solaris.service.OrganizationOnboardingService;
 import com.luccavergara.solaris.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,6 +33,18 @@ public class MeController {
     private final AuthenticatedUserService authenticatedUserService;
     private final OrganizationMemberRepository organizationMemberRepository;
     private final OrganizationSecurity organizationSecurity;
+    private final OrganizationOnboardingService organizationOnboardingService;
+
+    @GetMapping("/onboarding-status")
+    public OnboardingStatusResponse getOnboardingStatus() {
+        return organizationOnboardingService.getOnboardingStatus();
+    }
+
+    @PostMapping("/setup-organization")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AuthenticationResponse setupOrganization(@Valid @RequestBody SetupOrganizationRequest request) {
+        return organizationOnboardingService.setupOrganization(request);
+    }
 
     @GetMapping("/access-context")
     public AccessContextResponse getAccessContext(@RequestParam(required = false) Long orgId) {

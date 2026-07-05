@@ -55,7 +55,46 @@ public class SubscriptionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public OrganizationSubscription ensureSubscription(Organization organization) {
         return subscriptionRepository.findByOrganization(organization)
-                .orElseGet(() -> createDefaultSubscription(organization));
+                .orElseGet(() -> createPendingPlanSubscription(organization));
+    }
+
+    @Transactional
+    public OrganizationSubscription createPendingPlanSubscription(Organization organization) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return subscriptionRepository.save(
+                OrganizationSubscription.builder()
+                        .organization(organization)
+                        .planCode(SubscriptionPlanCode.POS)
+                        .status(SubscriptionStatus.PENDING_PLAN)
+                        .maxStores(1)
+                        .extraStoresPurchased(0)
+                        .billingProvider(BillingProvider.NONE)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build()
+        );
+    }
+
+    @Transactional
+    public OrganizationSubscription createLegacyTrialSubscription(Organization organization) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return subscriptionRepository.save(
+                OrganizationSubscription.builder()
+                        .organization(organization)
+                        .planCode(SubscriptionPlanCode.POS)
+                        .status(SubscriptionStatus.TRIALING)
+                        .maxStores(1)
+                        .extraStoresPurchased(0)
+                        .billingProvider(BillingProvider.NONE)
+                        .trialEndsAt(now.plusDays(TRIAL_DAYS))
+                        .currentPeriodStart(now)
+                        .currentPeriodEnd(now.plusDays(TRIAL_DAYS))
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -179,23 +218,7 @@ public class SubscriptionService {
     }
 
     private OrganizationSubscription createDefaultSubscription(Organization organization) {
-        LocalDateTime now = LocalDateTime.now();
-
-        return subscriptionRepository.save(
-                OrganizationSubscription.builder()
-                        .organization(organization)
-                        .planCode(SubscriptionPlanCode.POS)
-                        .status(SubscriptionStatus.TRIALING)
-                        .maxStores(1)
-                        .extraStoresPurchased(0)
-                        .billingProvider(BillingProvider.NONE)
-                        .trialEndsAt(now.plusDays(TRIAL_DAYS))
-                        .currentPeriodStart(now)
-                        .currentPeriodEnd(now.plusDays(TRIAL_DAYS))
-                        .createdAt(now)
-                        .updatedAt(now)
-                        .build()
-        );
+        return createPendingPlanSubscription(organization);
     }
 
     private OrganizationSubscriptionResponse mapToResponse(
