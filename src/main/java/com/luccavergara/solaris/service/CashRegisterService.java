@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.luccavergara.solaris.util.BusinessTimezoneHelper;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 
@@ -25,7 +26,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +44,7 @@ public class CashRegisterService {
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
+    private final BusinessTimezoneHelper businessTimezoneHelper;
 
     @Transactional
     public CashRegisterSessionResponse openCashRegister(
@@ -57,18 +61,15 @@ public class CashRegisterService {
                     throw new IllegalStateException("There is already an open cash register session");
                 });
 
-        LocalDate today = getTodayByBusinessTimezone();
+        LocalDate today = businessTimezoneHelper.today();
 
-        tenantQueryService.findCashRegisterSessionForDay(
-                        today.atStartOfDay(),
-                        today.atTime(LocalTime.MAX)
-                )
+        findSessionForBusinessDay(today)
                 .ifPresent(session -> {
                     throw new IllegalStateException("There is already a cash register session for today. Reopen it instead.");
                 });
 
         CashRegisterSession session = CashRegisterSession.builder()
-                .openedAt(LocalDateTime.now())
+                .openedAt(businessTimezoneHelper.nowForStorage())
                 .closedAt(null)
                 .openedBy(currentUser.getEmail())
                 .closedBy(null)
@@ -130,12 +131,9 @@ public class CashRegisterService {
 
         autoCloseStaleOpenCashRegisterIfNeeded(currentUser);
 
-        LocalDate today = getTodayByBusinessTimezone();
+        LocalDate today = businessTimezoneHelper.today();
 
-        CashRegisterSession session = tenantQueryService.findCashRegisterSessionForDay(
-                        today.atStartOfDay(),
-                        today.atTime(LocalTime.MAX)
-                )
+        CashRegisterSession session = findSessionForBusinessDay(today)
                 .orElseThrow(() -> new IllegalStateException("There is no cash register session for today"));
 
         return mapToResponse(session);
@@ -200,7 +198,7 @@ public class CashRegisterService {
         CashRegisterReopenLog log = CashRegisterReopenLog.builder()
                 .cashRegisterSession(session)
                 .reopenedBy(currentUser.getEmail())
-                .reopenedAt(LocalDateTime.now())
+                .reopenedAt(businessTimezoneHelper.nowForStorage())
                 .build();
 
         cashRegisterReopenLogRepository.save(log);
@@ -259,17 +257,28 @@ public class CashRegisterService {
 
     @Transactional
     protected void autoCloseStaleOpenCashRegisterIfNeeded(User currentUser) {
-        LocalDate today = getTodayByBusinessTimezone();
+        LocalDate today = businessTimezoneHelper.today();
 
         tenantQueryService.findOpenCashRegisterSession(currentUser)
                 .ifPresent(session -> {
-                    if (!session.getOpenedAt().toLocalDate().isBefore(today)) {
+                    LocalDate openedBusinessDate = businessTimezoneHelper.toBusinessDate(session.getOpenedAt());
+
+                    if (!openedBusinessDate.isBefore(today)) {
                         return;
                     }
 
                     closeSession(session, SYSTEM_AUTO_CLOSE);
                     cashRegisterSessionRepository.save(session);
                 });
+    }
+
+    private Optional<CashRegisterSession> findSessionForBusinessDay(LocalDate businessDate) {
+        LocalDateTime wideStart = businessTimezoneHelper.businessDayStartForQuery(businessDate.minusDays(1));
+        LocalDateTime wideEnd = businessTimezoneHelper.businessDayEndForQuery(businessDate.plusDays(1));
+
+        return tenantQueryService.findCashRegisterSessionsBetween(wideStart, wideEnd).stream()
+                .filter(session -> businessTimezoneHelper.toBusinessDate(session.getOpenedAt()).equals(businessDate))
+                .max(Comparator.comparing(CashRegisterSession::getOpenedAt));
     }
 
     private void closeSession(
@@ -280,7 +289,7 @@ public class CashRegisterService {
 
         applySalesTotals(session, sessionSales);
 
-        session.setClosedAt(LocalDateTime.now());
+        session.setClosedAt(businessTimezoneHelper.nowForStorage());
         session.setClosedBy(closedBy);
         session.setStatus(CashRegisterStatus.CLOSED);
     }
@@ -342,13 +351,6 @@ public class CashRegisterService {
                 .filter(sale -> sale.getPaymentMethod() == paymentMethod)
                 .map(Sale::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private LocalDate getTodayByBusinessTimezone() {
-        SystemSettings settings = systemSettingsService.getOrCreateSettings();
-        ZoneId zoneId = ZoneId.of(settings.getBusinessTimezone());
-
-        return LocalDate.now(zoneId);
     }
 
     private CashRegisterSessionResponse mapToResponse(CashRegisterSession session) {

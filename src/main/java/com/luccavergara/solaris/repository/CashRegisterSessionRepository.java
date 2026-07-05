@@ -70,6 +70,19 @@ public interface CashRegisterSessionRepository extends JpaRepository<CashRegiste
             Long storeId
     );
 
+    List<CashRegisterSession> findAllByOrganizationIdAndStoreIdAndOpenedAtBetweenOrderByOpenedAtDesc(
+            Long organizationId,
+            Long storeId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    List<CashRegisterSession> findAllByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
+            User user,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
     List<CashRegisterSession> findAllByStatusAndOrganizationId(
             CashRegisterStatus status,
             Long organizationId

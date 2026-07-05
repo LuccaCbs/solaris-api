@@ -292,6 +292,29 @@ public class TenantQueryService {
                 ));
     }
 
+    public List<CashRegisterSession> findCashRegisterSessionsBetween(LocalDateTime start, LocalDateTime end) {
+        User user = tenantScopeService.getCurrentUser();
+        Optional<Long> organizationId = tenantScopeService.resolveOrganizationId(user);
+
+        if (organizationId.isEmpty()) {
+            return cashRegisterSessionRepository.findAllByUserAndOpenedAtBetweenOrderByOpenedAtDesc(
+                    user,
+                    start,
+                    end
+            );
+        }
+
+        Long storeId = tenantScopeService.resolveStoreId(user)
+                .orElseThrow(() -> new IllegalStateException("No store assigned for cash register"));
+
+        return cashRegisterSessionRepository.findAllByOrganizationIdAndStoreIdAndOpenedAtBetweenOrderByOpenedAtDesc(
+                organizationId.get(),
+                storeId,
+                start,
+                end
+        );
+    }
+
     public Optional<CashRegisterSession> findCashRegisterSessionById(Long id) {
         User user = tenantScopeService.getCurrentUser();
         return resolveScopedCashRegisterQuery(user,
