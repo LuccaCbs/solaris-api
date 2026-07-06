@@ -2,6 +2,8 @@ package com.luccavergara.solaris.service;
 
 import com.luccavergara.solaris.dto.ProductRequest;
 import com.luccavergara.solaris.dto.ProductResponse;
+import com.luccavergara.solaris.dto.ProductPreviewResponse;
+import com.luccavergara.solaris.dto.StockMovementResponse;
 import com.luccavergara.solaris.dto.ProductUpdateRequest;
 import com.luccavergara.solaris.entity.Category;
 import com.luccavergara.solaris.entity.Product;
@@ -11,8 +13,12 @@ import com.luccavergara.solaris.util.BarcodeUtils;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
+import com.luccavergara.solaris.entity.StockMovementType;
 import com.luccavergara.solaris.repository.CategoryRepository;
 import com.luccavergara.solaris.repository.ProductRepository;
+import com.luccavergara.solaris.repository.SaleItemRepository;
+import com.luccavergara.solaris.repository.StockMovementRepository;
+import com.luccavergara.solaris.repository.SupplierOrderItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +36,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,6 +53,9 @@ public class ProductService {
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
     private final StockMovementService stockMovementService;
+    private final SaleItemRepository saleItemRepository;
+    private final SupplierOrderItemRepository supplierOrderItemRepository;
+    private final StockMovementRepository stockMovementRepository;
 
     private static final String PRODUCT_CREATION_REASON = "Product creation";
 
@@ -569,6 +579,52 @@ public class ProductService {
         );
 
         return mapToResponse(updatedProduct);
+    }
+
+    public ProductPreviewResponse getProductPreview(Long id) {
+        Product product = tenantQueryService.findProductById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        LocalDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = monthStart.plusMonths(1);
+
+        Integer salesQuantityThisMonth;
+        java.math.BigDecimal salesRevenueThisMonth;
+
+        if (tenantScopeService.resolveOrganizationId(currentUser).isPresent()) {
+            Long organizationId = tenantScopeService.resolveOrganizationId(currentUser).get();
+            salesQuantityThisMonth = saleItemRepository.sumQuantityByProductAndOrganizationAndDateRange(
+                    id, organizationId, monthStart, monthEnd
+            );
+            salesRevenueThisMonth = saleItemRepository.sumRevenueByProductAndOrganizationAndDateRange(
+                    id, organizationId, monthStart, monthEnd
+            );
+        } else {
+            salesQuantityThisMonth = saleItemRepository.sumQuantityByProductAndUserAndDateRange(
+                    id, currentUser.getId(), monthStart, monthEnd
+            );
+            salesRevenueThisMonth = saleItemRepository.sumRevenueByProductAndUserAndDateRange(
+                    id, currentUser.getId(), monthStart, monthEnd
+            );
+        }
+
+        long supplierOrderAppearances = supplierOrderItemRepository.countByProductId(id);
+        long restockCount = stockMovementRepository.countByProductIdAndType(id, StockMovementType.IN);
+
+        List<StockMovementResponse> recentStockMovements = stockMovementService.getMovementsByProduct(id)
+                .stream()
+                .limit(10)
+                .toList();
+
+        return ProductPreviewResponse.builder()
+                .product(mapToResponse(product))
+                .salesQuantityThisMonth(salesQuantityThisMonth)
+                .salesRevenueThisMonth(salesRevenueThisMonth)
+                .supplierOrderAppearances(supplierOrderAppearances)
+                .restockCount(restockCount)
+                .recentStockMovements(recentStockMovements)
+                .build();
     }
 
     private ProductResponse mapToResponse(Product product) {

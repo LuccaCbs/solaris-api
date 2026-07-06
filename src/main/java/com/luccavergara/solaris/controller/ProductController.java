@@ -2,6 +2,7 @@ package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.ProductRequest;
 import com.luccavergara.solaris.dto.ProductResponse;
+import com.luccavergara.solaris.dto.ProductPreviewResponse;
 import com.luccavergara.solaris.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -64,6 +65,13 @@ public class ProductController {
             @PathVariable String barcode
     ) {
         return ResponseEntity.ok(productService.getProductByBarcode(barcode));
+    }
+
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<ProductPreviewResponse> getProductPreview(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(productService.getProductPreview(id));
     }
 
     @GetMapping("/{id}")

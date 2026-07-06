@@ -1,9 +1,10 @@
 package com.luccavergara.solaris.entity;
 
 public enum OrganizationMemberRole {
-    OWNER(4),
-    ADMIN(3),
-    MANAGER(2),
+    OWNER(5),
+    ADMIN(4),
+    MANAGER(3),
+    REPOSITOR(2),
     CASHIER(1);
 
     private final int privilegeLevel;

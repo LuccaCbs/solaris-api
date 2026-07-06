@@ -21,4 +21,9 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             Long productId,
             Long organizationId
     );
+
+    long countByProductIdAndType(
+            Long productId,
+            com.luccavergara.solaris.entity.StockMovementType type
+    );
 }

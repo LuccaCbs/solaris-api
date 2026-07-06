@@ -50,6 +50,7 @@ public class CustomerService {
                 .phone(normalizedRequest.phone())
                 .address(normalizedRequest.address())
                 .condicionIva(normalizedRequest.condicionIva())
+                .active(true)
                 .createdAt(now)
                 .updatedAt(now)
                 .user(currentUser)
@@ -74,11 +75,46 @@ public class CustomerService {
         return mapToResponse(savedCustomer);
     }
 
-    public List<CustomerResponse> getAllCustomers() {
+    public List<CustomerResponse> getAllCustomers(Boolean active) {
         assertCustomersModule();
+        User currentUser = authenticatedUserService.getCurrentUser();
 
-        return tenantQueryService.findAllCustomers()
-                .stream()
+        List<Customer> customers;
+
+        if (active == null || Boolean.TRUE.equals(active)) {
+            customers = tenantScopeService.resolveOrganizationId(currentUser)
+                    .map(customerRepository::findAllByOrganizationIdAndActiveTrueOrderByCreatedAtDesc)
+                    .orElseGet(() -> customerRepository.findAllByUserAndActiveTrueOrderByCreatedAtDesc(currentUser));
+        } else {
+            customers = tenantScopeService.resolveOrganizationId(currentUser)
+                    .map(customerRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                    .orElseGet(() -> customerRepository.findAllByUserOrderByCreatedAtDesc(currentUser));
+
+            customers = customers.stream()
+                    .filter(customer -> Boolean.FALSE.equals(customer.getActive()))
+                    .toList();
+        }
+
+        return customers.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public List<CustomerResponse> searchCustomers(String query) {
+        assertCustomersModule();
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        if (query == null || query.isBlank()) {
+            return getAllCustomers(null);
+        }
+
+        String normalizedQuery = normalizeSearchQuery(query);
+
+        List<Customer> customers = tenantScopeService.resolveOrganizationId(currentUser)
+                .map(orgId -> customerRepository.searchActiveByOrganization(orgId, normalizedQuery))
+                .orElseGet(() -> customerRepository.searchActiveByUser(currentUser.getId(), normalizedQuery));
+
+        return customers.stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -129,6 +165,50 @@ public class CustomerService {
         return mapToResponse(updatedCustomer);
     }
 
+    public CustomerResponse deactivateCustomer(Long id) {
+        assertCustomersModule();
+
+        Customer customer = tenantQueryService.findCustomerById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        customer.setActive(false);
+        customer.setUpdatedAt(LocalDateTime.now());
+
+        Customer updatedCustomer = customerRepository.save(customer);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.CUSTOMER,
+                updatedCustomer.getId(),
+                updatedCustomer.getRazonSocial(),
+                "Customer deactivated"
+        );
+
+        return mapToResponse(updatedCustomer);
+    }
+
+    public CustomerResponse activateCustomer(Long id) {
+        assertCustomersModule();
+
+        Customer customer = tenantQueryService.findCustomerById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        customer.setActive(true);
+        customer.setUpdatedAt(LocalDateTime.now());
+
+        Customer updatedCustomer = customerRepository.save(customer);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.CUSTOMER,
+                updatedCustomer.getId(),
+                updatedCustomer.getRazonSocial(),
+                "Customer activated"
+        );
+
+        return mapToResponse(updatedCustomer);
+    }
+
     public void deleteCustomer(Long id) {
         assertCustomersModule();
 
@@ -144,6 +224,17 @@ public class CustomerService {
         );
 
         customerRepository.delete(customer);
+    }
+
+    private String normalizeSearchQuery(String query) {
+        String trimmed = query.trim();
+        String digitsOnly = trimmed.replaceAll("\\D", "");
+
+        if (!digitsOnly.isEmpty() && digitsOnly.matches("\\d{6,}")) {
+            return digitsOnly;
+        }
+
+        return trimmed;
     }
 
     private NormalizedCustomerRequest normalizeRequest(CustomerRequest request) {
@@ -231,6 +322,7 @@ public class CustomerService {
                 .phone(customer.getPhone())
                 .address(customer.getAddress())
                 .condicionIva(customer.getCondicionIva())
+                .active(customer.getActive())
                 .createdAt(customer.getCreatedAt())
                 .updatedAt(customer.getUpdatedAt())
                 .build();

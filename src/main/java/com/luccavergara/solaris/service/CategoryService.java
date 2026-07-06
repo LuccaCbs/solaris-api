@@ -8,6 +8,7 @@ import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.repository.CategoryRepository;
+import com.luccavergara.solaris.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class CategoryService {
     private static final String DEFAULT_CATEGORY_NAME = "General";
 
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
@@ -119,6 +121,17 @@ public class CategoryService {
 
         if (Boolean.TRUE.equals(category.getSystemCategory())) {
             throw new IllegalStateException("System category cannot be deleted");
+        }
+
+        Category defaultCategory = getOrCreateDefaultCategory(currentUser);
+        List<com.luccavergara.solaris.entity.Product> productsInCategory =
+                tenantScopeService.resolveOrganizationId(currentUser)
+                        .map(orgId -> productRepository.findByCategory_IdAndOrganizationId(id, orgId))
+                        .orElseGet(() -> productRepository.findByCategory_IdAndUser(id, currentUser));
+
+        for (com.luccavergara.solaris.entity.Product product : productsInCategory) {
+            product.setCategory(defaultCategory);
+            productRepository.save(product);
         }
 
         auditLogService.log(

@@ -60,11 +60,26 @@ public class SupplierService {
         return mapToResponse(savedSupplier);
     }
 
-    public List<SupplierResponse> getAllSuppliers() {
+    public List<SupplierResponse> getAllSuppliers(Boolean active) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        return tenantQueryService.findAllSuppliers()
-                .stream()
+        List<Supplier> suppliers;
+
+        if (active == null || Boolean.TRUE.equals(active)) {
+            suppliers = tenantScopeService.resolveOrganizationId(currentUser)
+                    .map(supplierRepository::findAllByOrganizationIdAndActiveTrueOrderByCreatedAtDesc)
+                    .orElseGet(() -> supplierRepository.findAllByUserAndActiveTrueOrderByCreatedAtDesc(currentUser));
+        } else {
+            suppliers = tenantScopeService.resolveOrganizationId(currentUser)
+                    .map(supplierRepository::findAllByOrganizationIdOrderByCreatedAtDesc)
+                    .orElseGet(() -> supplierRepository.findAllByUserOrderByCreatedAtDesc(currentUser));
+
+            suppliers = suppliers.stream()
+                    .filter(supplier -> Boolean.FALSE.equals(supplier.getActive()))
+                    .toList();
+        }
+
+        return suppliers.stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -105,6 +120,50 @@ public class SupplierService {
                 updatedSupplier.getId(),
                 updatedSupplier.getName(),
                 "Supplier updated"
+        );
+
+        return mapToResponse(updatedSupplier);
+    }
+
+    public SupplierResponse deactivateSupplier(Long id) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Supplier supplier = tenantQueryService.findSupplierById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        supplier.setActive(false);
+        supplier.setUpdatedAt(LocalDateTime.now());
+
+        Supplier updatedSupplier = supplierRepository.save(supplier);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.SUPPLIER,
+                updatedSupplier.getId(),
+                updatedSupplier.getName(),
+                "Supplier deactivated"
+        );
+
+        return mapToResponse(updatedSupplier);
+    }
+
+    public SupplierResponse activateSupplier(Long id) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        Supplier supplier = tenantQueryService.findSupplierById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        supplier.setActive(true);
+        supplier.setUpdatedAt(LocalDateTime.now());
+
+        Supplier updatedSupplier = supplierRepository.save(supplier);
+
+        auditLogService.log(
+                AuditAction.UPDATE,
+                AuditEntityType.SUPPLIER,
+                updatedSupplier.getId(),
+                updatedSupplier.getName(),
+                "Supplier activated"
         );
 
         return mapToResponse(updatedSupplier);

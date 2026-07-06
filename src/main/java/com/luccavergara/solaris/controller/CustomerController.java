@@ -6,6 +6,7 @@ import com.luccavergara.solaris.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,8 +29,17 @@ public class CustomerController {
     }
 
     @GetMapping
-    public List<CustomerResponse> getAllCustomers() {
-        return customerService.getAllCustomers();
+    public List<CustomerResponse> getAllCustomers(
+            @RequestParam(required = false) Boolean active
+    ) {
+        return customerService.getAllCustomers(active);
+    }
+
+    @GetMapping("/search")
+    public List<CustomerResponse> searchCustomers(
+            @RequestParam("q") String query
+    ) {
+        return customerService.searchCustomers(query);
     }
 
     @GetMapping("/{id}")
@@ -43,6 +53,16 @@ public class CustomerController {
             @Valid @RequestBody CustomerRequest request
     ) {
         return customerService.updateCustomer(id, request);
+    }
+
+    @PatchMapping("/{id}/deactivate")
+    public ResponseEntity<CustomerResponse> deactivateCustomer(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.deactivateCustomer(id));
+    }
+
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<CustomerResponse> activateCustomer(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.activateCustomer(id));
     }
 
     @DeleteMapping("/{id}")

@@ -6,6 +6,7 @@ import com.luccavergara.solaris.service.SupplierService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,8 +27,10 @@ public class SupplierController {
     }
 
     @GetMapping
-    public List<SupplierResponse> getAllSuppliers() {
-        return supplierService.getAllSuppliers();
+    public List<SupplierResponse> getAllSuppliers(
+            @RequestParam(required = false) Boolean active
+    ) {
+        return supplierService.getAllSuppliers(active);
     }
 
     @GetMapping("/{id}")
@@ -41,6 +44,16 @@ public class SupplierController {
             @Valid @RequestBody SupplierRequest request
     ) {
         return supplierService.updateSupplier(id, request);
+    }
+
+    @PatchMapping("/{id}/deactivate")
+    public ResponseEntity<SupplierResponse> deactivateSupplier(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.deactivateSupplier(id));
+    }
+
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<SupplierResponse> activateSupplier(@PathVariable Long id) {
+        return ResponseEntity.ok(supplierService.activateSupplier(id));
     }
 
     @DeleteMapping("/{id}")

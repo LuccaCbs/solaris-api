@@ -92,4 +92,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             Long organizationId3,
             String description
     );
+
+    List<Product> findByCategory_IdAndUser(Long categoryId, User user);
+
+    List<Product> findByCategory_IdAndOrganizationId(Long categoryId, Long organizationId);
 }

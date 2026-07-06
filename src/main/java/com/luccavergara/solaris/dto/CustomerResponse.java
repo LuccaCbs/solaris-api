@@ -23,4 +23,5 @@ public class CustomerResponse {
     private CondicionIva condicionIva;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean active;
 }
