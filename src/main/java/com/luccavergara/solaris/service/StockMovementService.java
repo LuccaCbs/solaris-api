@@ -99,6 +99,34 @@ public class StockMovementService {
                 .toList();
     }
 
+    public void recordInitialStockMovement(Product product, String reason) {
+        if (product.getStockQuantity() == null || product.getStockQuantity() <= 0) {
+            return;
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        int stockQuantity = product.getStockQuantity();
+
+        StockMovement movement = StockMovement.builder()
+                .product(product)
+                .user(currentUser)
+                .type(StockMovementType.IN)
+                .quantity(stockQuantity)
+                .previousStock(0)
+                .currentStock(stockQuantity)
+                .reason(reason)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        tenantScopeService.getOrganizationReference(currentUser)
+                .ifPresent(organization -> {
+                    movement.setOrganization(organization);
+                    movement.setCreatedBy(currentUser);
+                });
+
+        stockMovementRepository.save(movement);
+    }
+
     public List<StockMovementResponse> getMovementsByProduct(Long productId) {
         tenantQueryService.findProductById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));

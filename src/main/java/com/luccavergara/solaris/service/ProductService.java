@@ -15,6 +15,7 @@ import com.luccavergara.solaris.repository.CategoryRepository;
 import com.luccavergara.solaris.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.luccavergara.solaris.dto.ProductImportMode;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
@@ -44,6 +45,9 @@ public class ProductService {
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
+    private final StockMovementService stockMovementService;
+
+    private static final String PRODUCT_CREATION_REASON = "Product creation";
 
     public byte[] generateImportTemplate() {
         try (Workbook workbook = WorkbookFactory.create(true);
@@ -324,6 +328,7 @@ public class ProductService {
         return new ResolvedBarcode(existingProduct.getBarcode(), existingProduct.getBarcodeFormat());
     }
 
+    @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -373,6 +378,10 @@ public class ProductService {
                 savedProduct.getName(),
                 "Product created"
         );
+
+        if (savedProduct.getStockQuantity() != null && savedProduct.getStockQuantity() > 0) {
+            stockMovementService.recordInitialStockMovement(savedProduct, PRODUCT_CREATION_REASON);
+        }
 
         return mapToResponse(savedProduct);
     }
