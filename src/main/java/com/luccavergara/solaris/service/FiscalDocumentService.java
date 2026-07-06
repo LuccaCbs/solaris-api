@@ -148,6 +148,18 @@ public class FiscalDocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fiscal document not found"));
     }
 
+    public List<FiscalDocumentResponse> getFiscalDocumentsByCustomerId(Long customerId) {
+        assertFiscalModule();
+
+        tenantQueryService.findCustomerById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        return fiscalDocumentRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     public FiscalDocumentResponse getFiscalDocumentBySaleId(Long saleId) {
         assertFiscalModule();
 

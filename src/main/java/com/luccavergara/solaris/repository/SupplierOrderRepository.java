@@ -16,4 +16,8 @@ public interface SupplierOrderRepository extends JpaRepository<SupplierOrder, Lo
     Optional<SupplierOrder> findByIdAndUser(Long id, User user);
 
     Optional<SupplierOrder> findByIdAndOrganizationId(Long id, Long organizationId);
+
+    List<SupplierOrder> findAllBySupplierIdOrderByCreatedAtDesc(Long supplierId);
+
+    long countBySupplierId(Long supplierId);
 }

@@ -1,7 +1,9 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.CustomerPreviewResponse;
 import com.luccavergara.solaris.dto.CustomerRequest;
 import com.luccavergara.solaris.dto.CustomerResponse;
+import com.luccavergara.solaris.dto.FiscalDocumentResponse;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 import com.luccavergara.solaris.entity.Customer;
@@ -27,6 +29,7 @@ public class CustomerService {
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
     private final EntitlementService entitlementService;
+    private final FiscalDocumentService fiscalDocumentService;
 
     public CustomerResponse createCustomer(CustomerRequest request) {
         assertCustomersModule();
@@ -126,6 +129,22 @@ public class CustomerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
 
         return mapToResponse(customer);
+    }
+
+    public CustomerPreviewResponse getCustomerPreview(Long id) {
+        assertCustomersModule();
+
+        Customer customer = tenantQueryService.findCustomerById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        List<FiscalDocumentResponse> invoicedDocuments =
+                fiscalDocumentService.getFiscalDocumentsByCustomerId(id);
+
+        return CustomerPreviewResponse.builder()
+                .customer(mapToResponse(customer))
+                .totalInvoicedDocuments((long) invoicedDocuments.size())
+                .invoicedDocuments(invoicedDocuments)
+                .build();
     }
 
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {

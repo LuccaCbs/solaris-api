@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.controller;
 
+import com.luccavergara.solaris.dto.CustomerPreviewResponse;
 import com.luccavergara.solaris.dto.CustomerRequest;
 import com.luccavergara.solaris.dto.CustomerResponse;
 import com.luccavergara.solaris.service.CustomerService;
@@ -40,6 +41,11 @@ public class CustomerController {
             @RequestParam("q") String query
     ) {
         return customerService.searchCustomers(query);
+    }
+
+    @GetMapping("/{id}/preview")
+    public CustomerPreviewResponse getCustomerPreview(@PathVariable Long id) {
+        return customerService.getCustomerPreview(id);
     }
 
     @GetMapping("/{id}")

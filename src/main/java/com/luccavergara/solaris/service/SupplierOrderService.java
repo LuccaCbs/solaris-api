@@ -155,6 +155,24 @@ public class SupplierOrderService {
         return mapToResponse(supplierOrder);
     }
 
+    public List<SupplierOrderResponse> getRecentOrdersBySupplierId(Long supplierId, int limit) {
+        tenantQueryService.findSupplierById(supplierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        return supplierOrderRepository.findAllBySupplierIdOrderByCreatedAtDesc(supplierId)
+                .stream()
+                .limit(limit)
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public long countOrdersBySupplierId(Long supplierId) {
+        tenantQueryService.findSupplierById(supplierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        return supplierOrderRepository.countBySupplierId(supplierId);
+    }
+
     @Transactional
     public SupplierOrderResponse markAsSent(Long id) {
         User currentUser = authenticatedUserService.getCurrentUser();

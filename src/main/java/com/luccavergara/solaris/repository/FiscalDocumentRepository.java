@@ -13,6 +13,10 @@ public interface FiscalDocumentRepository extends JpaRepository<FiscalDocument, 
 
     List<FiscalDocument> findAllByOrganizationIdOrderByCreatedAtDesc(Long organizationId);
 
+    List<FiscalDocument> findAllByCustomerIdOrderByCreatedAtDesc(Long customerId);
+
+    long countByCustomerId(Long customerId);
+
     Optional<FiscalDocument> findByIdAndOrganizationId(Long id, Long organizationId);
 
     Optional<FiscalDocument> findBySaleId(Long saleId);

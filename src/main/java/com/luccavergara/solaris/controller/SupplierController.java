@@ -1,5 +1,6 @@
 package com.luccavergara.solaris.controller;
 
+import com.luccavergara.solaris.dto.SupplierPreviewResponse;
 import com.luccavergara.solaris.dto.SupplierRequest;
 import com.luccavergara.solaris.dto.SupplierResponse;
 import com.luccavergara.solaris.service.SupplierService;
@@ -31,6 +32,11 @@ public class SupplierController {
             @RequestParam(required = false) Boolean active
     ) {
         return supplierService.getAllSuppliers(active);
+    }
+
+    @GetMapping("/{id}/preview")
+    public SupplierPreviewResponse getSupplierPreview(@PathVariable Long id) {
+        return supplierService.getSupplierPreview(id);
     }
 
     @GetMapping("/{id}")

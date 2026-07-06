@@ -1,5 +1,7 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.SupplierOrderResponse;
+import com.luccavergara.solaris.dto.SupplierPreviewResponse;
 import com.luccavergara.solaris.dto.SupplierRequest;
 import com.luccavergara.solaris.dto.SupplierResponse;
 import com.luccavergara.solaris.entity.Supplier;
@@ -23,6 +25,7 @@ public class SupplierService {
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
     private final TenantScopeService tenantScopeService;
+    private final SupplierOrderService supplierOrderService;
 
     public SupplierResponse createSupplier(SupplierRequest request) {
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -91,6 +94,20 @@ public class SupplierService {
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
 
         return mapToResponse(supplier);
+    }
+
+    public SupplierPreviewResponse getSupplierPreview(Long id) {
+        Supplier supplier = tenantQueryService.findSupplierById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
+
+        List<SupplierOrderResponse> recentOrders = supplierOrderService
+                .getRecentOrdersBySupplierId(id, 10);
+
+        return SupplierPreviewResponse.builder()
+                .supplier(mapToResponse(supplier))
+                .totalOrders(supplierOrderService.countOrdersBySupplierId(id))
+                .recentOrders(recentOrders)
+                .build();
     }
 
     public SupplierResponse updateSupplier(Long id, SupplierRequest request) {
