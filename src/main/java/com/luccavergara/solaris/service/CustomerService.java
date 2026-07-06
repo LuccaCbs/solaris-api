@@ -1,5 +1,7 @@
 package com.luccavergara.solaris.service;
 
+import com.luccavergara.solaris.dto.CustomerDocumentRequest;
+import com.luccavergara.solaris.dto.CustomerDocumentResponse;
 import com.luccavergara.solaris.dto.CustomerPreviewResponse;
 import com.luccavergara.solaris.dto.CustomerRequest;
 import com.luccavergara.solaris.dto.CustomerResponse;
@@ -7,23 +9,32 @@ import com.luccavergara.solaris.dto.FiscalDocumentResponse;
 import com.luccavergara.solaris.entity.AuditAction;
 import com.luccavergara.solaris.entity.AuditEntityType;
 import com.luccavergara.solaris.entity.Customer;
+import com.luccavergara.solaris.entity.CustomerDocument;
 import com.luccavergara.solaris.entity.DocumentType;
 import com.luccavergara.solaris.entity.ModuleCode;
+import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.entity.User;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
+import com.luccavergara.solaris.repository.CustomerDocumentRepository;
 import com.luccavergara.solaris.repository.CustomerRepository;
 import com.luccavergara.solaris.util.TaxIdNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final CustomerDocumentRepository customerDocumentRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final AuditLogService auditLogService;
     private final TenantQueryService tenantQueryService;
@@ -34,20 +45,14 @@ public class CustomerService {
     public CustomerResponse createCustomer(CustomerRequest request) {
         assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
-        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
-
-        validateUniqueDocument(
-                currentUser,
-                normalizedRequest.documentType(),
-                normalizedRequest.documentNumber(),
-                null
-        );
+        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request, currentUser, null);
 
         LocalDateTime now = LocalDateTime.now();
+        Organization organization = tenantScopeService.getOrganizationReference(currentUser).orElse(null);
 
         Customer customer = Customer.builder()
-                .documentType(normalizedRequest.documentType())
-                .documentNumber(normalizedRequest.documentNumber())
+                .documentType(normalizedRequest.primaryDocument().documentType())
+                .documentNumber(normalizedRequest.primaryDocument().documentNumber())
                 .razonSocial(normalizedRequest.razonSocial())
                 .email(normalizedRequest.email())
                 .phone(normalizedRequest.phone())
@@ -59,11 +64,12 @@ public class CustomerService {
                 .user(currentUser)
                 .build();
 
-        tenantScopeService.getOrganizationReference(currentUser)
-                .ifPresent(organization -> {
-                    customer.setOrganization(organization);
-                    customer.setCreatedBy(currentUser);
-                });
+        if (organization != null) {
+            customer.setOrganization(organization);
+            customer.setCreatedBy(currentUser);
+        }
+
+        applyDocuments(customer, normalizedRequest.documents(), currentUser, organization, now);
 
         Customer savedCustomer = customerRepository.save(customer);
 
@@ -78,6 +84,7 @@ public class CustomerService {
         return mapToResponse(savedCustomer);
     }
 
+    @Transactional(readOnly = true)
     public List<CustomerResponse> getAllCustomers(Boolean active) {
         assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -103,6 +110,7 @@ public class CustomerService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<CustomerResponse> searchCustomers(String query) {
         assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -122,6 +130,7 @@ public class CustomerService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Long id) {
         assertCustomersModule();
 
@@ -131,6 +140,7 @@ public class CustomerService {
         return mapToResponse(customer);
     }
 
+    @Transactional(readOnly = true)
     public CustomerPreviewResponse getCustomerPreview(Long id) {
         assertCustomersModule();
 
@@ -150,26 +160,25 @@ public class CustomerService {
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
         assertCustomersModule();
         User currentUser = authenticatedUserService.getCurrentUser();
-        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request);
+        NormalizedCustomerRequest normalizedRequest = normalizeRequest(request, currentUser, id);
 
         Customer customer = tenantQueryService.findCustomerById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
 
-        validateUniqueDocument(
-                currentUser,
-                normalizedRequest.documentType(),
-                normalizedRequest.documentNumber(),
-                id
-        );
+        Organization organization = customer.getOrganization();
+        LocalDateTime now = LocalDateTime.now();
 
-        customer.setDocumentType(normalizedRequest.documentType());
-        customer.setDocumentNumber(normalizedRequest.documentNumber());
+        customer.setDocumentType(normalizedRequest.primaryDocument().documentType());
+        customer.setDocumentNumber(normalizedRequest.primaryDocument().documentNumber());
         customer.setRazonSocial(normalizedRequest.razonSocial());
         customer.setEmail(normalizedRequest.email());
         customer.setPhone(normalizedRequest.phone());
         customer.setAddress(normalizedRequest.address());
         customer.setCondicionIva(normalizedRequest.condicionIva());
-        customer.setUpdatedAt(LocalDateTime.now());
+        customer.setUpdatedAt(now);
+
+        customer.getDocuments().clear();
+        applyDocuments(customer, normalizedRequest.documents(), currentUser, organization, now);
 
         Customer updatedCustomer = customerRepository.save(customer);
 
@@ -256,20 +265,71 @@ public class CustomerService {
         return trimmed;
     }
 
-    private NormalizedCustomerRequest normalizeRequest(CustomerRequest request) {
-        DocumentType documentType = request.getDocumentType();
-        TaxIdNormalizer.validateDocumentNumber(documentType, request.getDocumentNumber());
+    private List<CustomerDocumentRequest> resolveDocumentRequests(CustomerRequest request) {
+        if (request.getDocuments() != null && !request.getDocuments().isEmpty()) {
+            return request.getDocuments();
+        }
 
-        String documentNumber = TaxIdNormalizer.normalizeDocumentNumber(
-                documentType,
-                request.getDocumentNumber()
-        );
+        if (request.getDocumentType() != null && request.getDocumentNumber() != null) {
+            return List.of(
+                    CustomerDocumentRequest.builder()
+                            .documentType(request.getDocumentType())
+                            .documentNumber(request.getDocumentNumber())
+                            .primary(true)
+                            .build()
+            );
+        }
+
+        throw new IllegalArgumentException("At least one document is required");
+    }
+
+    private NormalizedCustomerRequest normalizeRequest(
+            CustomerRequest request,
+            User currentUser,
+            Long excludeCustomerId
+    ) {
+        List<CustomerDocumentRequest> documentRequests = resolveDocumentRequests(request);
+        List<NormalizedDocument> normalizedDocuments = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+        boolean hasPrimary = documentRequests.stream()
+                .anyMatch(document -> Boolean.TRUE.equals(document.getPrimary()));
+
+        for (int index = 0; index < documentRequests.size(); index++) {
+            CustomerDocumentRequest documentRequest = documentRequests.get(index);
+            DocumentType documentType = documentRequest.getDocumentType();
+            TaxIdNormalizer.validateDocumentNumber(documentType, documentRequest.getDocumentNumber());
+
+            String documentNumber = TaxIdNormalizer.normalizeDocumentNumber(
+                    documentType,
+                    documentRequest.getDocumentNumber()
+            );
+            String key = documentType.name() + ":" + documentNumber;
+
+            if (!seenKeys.add(key)) {
+                throw new IllegalArgumentException("Duplicate documents are not allowed");
+            }
+
+            validateUniqueDocument(currentUser, documentType, documentNumber, excludeCustomerId);
+
+            boolean primary = Boolean.TRUE.equals(documentRequest.getPrimary())
+                    || (!hasPrimary && index == 0);
+
+            normalizedDocuments.add(new NormalizedDocument(documentType, documentNumber, primary));
+        }
+
+        ensureSinglePrimary(normalizedDocuments);
+
+        NormalizedDocument primaryDocument = normalizedDocuments.stream()
+                .filter(NormalizedDocument::primary)
+                .findFirst()
+                .orElse(normalizedDocuments.get(0));
+
         String phone = TaxIdNormalizer.normalizePhone(request.getPhone());
         TaxIdNormalizer.validatePhone(phone);
 
         return new NormalizedCustomerRequest(
-                documentType,
-                documentNumber,
+                normalizedDocuments,
+                primaryDocument,
                 request.getRazonSocial().trim(),
                 TaxIdNormalizer.normalizeEmail(request.getEmail()),
                 phone,
@@ -278,47 +338,71 @@ public class CustomerService {
         );
     }
 
+    private void ensureSinglePrimary(List<NormalizedDocument> documents) {
+        long primaryCount = documents.stream().filter(NormalizedDocument::primary).count();
+
+        if (primaryCount == 0) {
+            NormalizedDocument first = documents.get(0);
+            documents.set(0, new NormalizedDocument(
+                    first.documentType(),
+                    first.documentNumber(),
+                    true
+            ));
+            return;
+        }
+
+        if (primaryCount > 1) {
+            throw new IllegalArgumentException("Only one document can be marked as primary");
+        }
+    }
+
+    private void applyDocuments(
+            Customer customer,
+            List<NormalizedDocument> documents,
+            User currentUser,
+            Organization organization,
+            LocalDateTime createdAt
+    ) {
+        for (NormalizedDocument document : documents) {
+            CustomerDocument customerDocument = CustomerDocument.builder()
+                    .customer(customer)
+                    .documentType(document.documentType())
+                    .documentNumber(document.documentNumber())
+                    .primary(document.primary())
+                    .user(currentUser)
+                    .organization(organization)
+                    .createdAt(createdAt)
+                    .build();
+
+            customer.getDocuments().add(customerDocument);
+        }
+    }
+
     private void validateUniqueDocument(
             User currentUser,
             DocumentType documentType,
             String documentNumber,
-            Long excludeId
+            Long excludeCustomerId
     ) {
         tenantScopeService.resolveOrganizationId(currentUser)
                 .ifPresentOrElse(
                         organizationId -> {
-                            boolean exists = excludeId == null
-                                    ? customerRepository.existsByDocumentTypeAndDocumentNumberAndOrganizationId(
-                                    documentType,
-                                    documentNumber,
-                                    organizationId
-                            )
-                                    : customerRepository.existsByDocumentTypeAndDocumentNumberAndOrganizationIdAndIdNot(
-                                    documentType,
-                                    documentNumber,
+                            if (customerDocumentRepository.existsByDocumentInOrganization(
                                     organizationId,
-                                    excludeId
-                            );
-
-                            if (exists) {
+                                    documentType,
+                                    documentNumber,
+                                    excludeCustomerId
+                            )) {
                                 throw new IllegalArgumentException("A customer with this document already exists");
                             }
                         },
                         () -> {
-                            boolean exists = excludeId == null
-                                    ? customerRepository.existsByDocumentTypeAndDocumentNumberAndUserAndOrganizationIsNull(
-                                    documentType,
-                                    documentNumber,
-                                    currentUser
-                            )
-                                    : customerRepository.existsByDocumentTypeAndDocumentNumberAndUserAndOrganizationIsNullAndIdNot(
-                                    documentType,
-                                    documentNumber,
+                            if (customerDocumentRepository.existsByDocumentForPersonalUser(
                                     currentUser,
-                                    excludeId
-                            );
-
-                            if (exists) {
+                                    documentType,
+                                    documentNumber,
+                                    excludeCustomerId
+                            )) {
                                 throw new IllegalArgumentException("A customer with this document already exists");
                             }
                         }
@@ -332,10 +416,32 @@ public class CustomerService {
     }
 
     private CustomerResponse mapToResponse(Customer customer) {
+        List<CustomerDocumentResponse> documents = customer.getDocuments().stream()
+                .map(document -> CustomerDocumentResponse.builder()
+                        .id(document.getId())
+                        .documentType(document.getDocumentType())
+                        .documentNumber(document.getDocumentNumber())
+                        .primary(document.getPrimary())
+                        .build())
+                .toList();
+
+        CustomerDocumentResponse primaryDocument = documents.stream()
+                .filter(document -> Boolean.TRUE.equals(document.getPrimary()))
+                .findFirst()
+                .orElse(documents.isEmpty() ? null : documents.get(0));
+
+        DocumentType documentType = primaryDocument != null
+                ? primaryDocument.getDocumentType()
+                : customer.getDocumentType();
+        String documentNumber = primaryDocument != null
+                ? primaryDocument.getDocumentNumber()
+                : customer.getDocumentNumber();
+
         return CustomerResponse.builder()
                 .id(customer.getId())
-                .documentType(customer.getDocumentType())
-                .documentNumber(customer.getDocumentNumber())
+                .documentType(documentType)
+                .documentNumber(documentNumber)
+                .documents(documents)
                 .razonSocial(customer.getRazonSocial())
                 .email(customer.getEmail())
                 .phone(customer.getPhone())
@@ -347,9 +453,16 @@ public class CustomerService {
                 .build();
     }
 
-    private record NormalizedCustomerRequest(
+    private record NormalizedDocument(
             DocumentType documentType,
             String documentNumber,
+            boolean primary
+    ) {
+    }
+
+    private record NormalizedCustomerRequest(
+            List<NormalizedDocument> documents,
+            NormalizedDocument primaryDocument,
             String razonSocial,
             String email,
             String phone,

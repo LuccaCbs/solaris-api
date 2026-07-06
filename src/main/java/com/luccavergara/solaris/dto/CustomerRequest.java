@@ -2,9 +2,12 @@ package com.luccavergara.solaris.dto;
 
 import com.luccavergara.solaris.entity.CondicionIva;
 import com.luccavergara.solaris.entity.DocumentType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -13,11 +16,13 @@ import lombok.*;
 @Builder
 public class CustomerRequest {
 
-    @NotNull
+    /** Legacy single-document fields; used when {@code documents} is empty. */
     private DocumentType documentType;
 
-    @NotBlank
     private String documentNumber;
+
+    @Valid
+    private List<CustomerDocumentRequest> documents;
 
     @NotBlank
     private String razonSocial;

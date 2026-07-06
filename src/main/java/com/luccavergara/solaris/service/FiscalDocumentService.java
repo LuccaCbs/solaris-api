@@ -14,6 +14,7 @@ import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
 import com.luccavergara.solaris.tenant.TenantContext;
+import com.luccavergara.solaris.util.CustomerDocumentResolver;
 import com.luccavergara.solaris.util.SpainTaxIdValidator;
 import com.luccavergara.solaris.util.TaxIdNormalizer;
 import lombok.RequiredArgsConstructor;
@@ -361,12 +362,13 @@ public class FiscalDocumentService {
         String customerAddress;
 
         if (customer != null) {
-            customerDocumentType = customer.getDocumentType().name();
+            CustomerDocument fiscalDocument = CustomerDocumentResolver.resolveFiscalDocument(customer);
+            customerDocumentType = fiscalDocument.getDocumentType().name();
             customerDocumentNumber = spain
-                    ? SpainTaxIdValidator.normalize(customer.getDocumentNumber())
+                    ? SpainTaxIdValidator.normalize(fiscalDocument.getDocumentNumber())
                     : TaxIdNormalizer.normalizeDocumentNumber(
-                            customer.getDocumentType(),
-                            customer.getDocumentNumber()
+                            fiscalDocument.getDocumentType(),
+                            fiscalDocument.getDocumentNumber()
                     );
             customerRazonSocial = customer.getRazonSocial();
             customerCondicionIva = customer.getCondicionIva();

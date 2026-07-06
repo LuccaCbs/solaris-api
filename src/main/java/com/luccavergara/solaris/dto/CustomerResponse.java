@@ -5,6 +5,7 @@ import com.luccavergara.solaris.entity.DocumentType;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -14,8 +15,11 @@ import java.time.LocalDateTime;
 public class CustomerResponse {
 
     private Long id;
+    /** Primary document type (backward compatible). */
     private DocumentType documentType;
+    /** Primary document number (backward compatible). */
     private String documentNumber;
+    private List<CustomerDocumentResponse> documents;
     private String razonSocial;
     private String email;
     private String phone;
