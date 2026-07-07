@@ -2,6 +2,7 @@ package com.luccavergara.solaris.controller;
 
 import com.luccavergara.solaris.dto.AuthenticationRequest;
 import com.luccavergara.solaris.dto.AuthenticationResponse;
+import com.luccavergara.solaris.dto.GoogleAuthRequest;
 import com.luccavergara.solaris.dto.RegisterRequest;
 import com.luccavergara.solaris.dto.SelectOrganizationRequest;
 import com.luccavergara.solaris.service.AuthenticationService;
@@ -37,6 +38,13 @@ public class AuthController {
             @Valid @RequestBody AuthenticationRequest request
     ) {
         return ResponseEntity.ok(authenticationService.authenticate(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthenticationResponse> authenticateWithGoogle(
+            @Valid @RequestBody GoogleAuthRequest request
+    ) {
+        return ResponseEntity.ok(authenticationService.authenticateWithGoogle(request.getIdToken()));
     }
 
     @PostMapping("/select-organization")

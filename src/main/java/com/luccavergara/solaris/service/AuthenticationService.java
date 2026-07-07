@@ -36,6 +36,7 @@ public class AuthenticationService {
     private final AuditLogService auditLogService;
     private final OrganizationMembershipService organizationMembershipService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final GoogleAuthService googleAuthService;
 
     public RegisterResponse register(RegisterRequest request) {
 
@@ -98,15 +99,28 @@ public class AuthenticationService {
                 "User logged in"
         );
 
-        var jwtToken = organizationMembershipService.findPrimaryMembership(user)
-                .map(membership -> jwtService.generateToken(
-                        organizationMembershipService.buildJwtClaims(membership),
-                        user
-                ))
-                .orElseGet(() -> jwtService.generateToken(user));
+        return AuthenticationResponse.builder()
+                .token(generateAuthToken(user))
+                .build();
+    }
+
+    public AuthenticationResponse authenticateWithGoogle(String idToken) {
+        GoogleAuthService.GoogleTokenPayload payload = googleAuthService.verifyIdToken(idToken);
+        GoogleAuthService.GoogleAuthResult result = googleAuthService.findOrCreateUser(payload);
+        User user = result.user();
+
+        if (!result.newlyCreated()) {
+            auditLogService.log(
+                    AuditAction.LOGIN,
+                    AuditEntityType.USER,
+                    user.getId(),
+                    user.getFirstname() + " " + user.getLastname(),
+                    "User logged in via Google"
+            );
+        }
 
         return AuthenticationResponse.builder()
-                .token(jwtToken)
+                .token(generateAuthToken(user))
                 .build();
     }
 
@@ -134,5 +148,14 @@ public class AuthenticationService {
         return AuthenticationResponse.builder()
                 .token(jwtToken)
                 .build();
+    }
+
+    private String generateAuthToken(User user) {
+        return organizationMembershipService.findPrimaryMembership(user)
+                .map(membership -> jwtService.generateToken(
+                        organizationMembershipService.buildJwtClaims(membership),
+                        user
+                ))
+                .orElseGet(() -> jwtService.generateToken(user));
     }
 }
