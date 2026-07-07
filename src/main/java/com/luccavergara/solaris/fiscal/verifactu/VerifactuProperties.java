@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class VerifactuProperties {
 
     private Sandbox sandbox = new Sandbox();
+    private Production production = new Production();
     private String nif = "";
     private Integer serie = 1;
     private Cert cert = new Cert();
@@ -27,12 +28,18 @@ public class VerifactuProperties {
     @Setter
     public static class Sandbox {
         private boolean enabled = false;
-        private String wsdlUrl =
-                "https://prewww2.aeat.es/static_files/common/internet/dep/aplicaciones/es/aeat/tikeV1.0/cont/ws/SistemaFacturacion.wsdl";
-        private String serviceUrl =
-                "https://prewww2.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP";
-        private String qrValidationBaseUrl =
-                "https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR";
+        private String wsdlUrl = VerifactuWsdlEndpoints.WSDL_SANDBOX;
+        private String serviceUrl = VerifactuWsdlEndpoints.SANDBOX_VERIFACTU;
+        private String serviceSelloUrl = VerifactuWsdlEndpoints.SANDBOX_VERIFACTU_SELLO;
+        private String qrValidationBaseUrl = VerifactuWsdlEndpoints.SANDBOX_QR_VALIDATION;
+    }
+
+    @Getter
+    @Setter
+    public static class Production {
+        private String wsdlUrl = VerifactuWsdlEndpoints.WSDL_PRODUCTION;
+        private String serviceUrl = VerifactuWsdlEndpoints.PRODUCTION_VERIFACTU;
+        private String serviceSelloUrl = VerifactuWsdlEndpoints.PRODUCTION_VERIFACTU_SELLO;
     }
 
     @Getter

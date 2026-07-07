@@ -14,8 +14,7 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class VerifactuAeatClient {
 
-    private static final String SOAP_ACTION =
-            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SistemaFacturacion.wsdl/RegFactuSistemaFacturacion";
+    private static final String SOAP_ACTION = VerifactuWsdlEndpoints.SOAP_ACTION;
     private static final DateTimeFormatter EXPEDITION_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final VerifactuProperties verifactuProperties;

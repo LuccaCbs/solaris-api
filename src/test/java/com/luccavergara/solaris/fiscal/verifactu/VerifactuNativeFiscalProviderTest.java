@@ -63,7 +63,7 @@ class VerifactuNativeFiscalProviderTest {
                         1,
                         10L,
                         "ABCDEF1234567890",
-                        "https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR?nif=B12345678",
+                        "https://prewww1.aeat.es/wlpl/TIKE-CONT/ValidarQR?nif=B12345678",
                         "<request/>",
                         "<response/>"
                 ));
