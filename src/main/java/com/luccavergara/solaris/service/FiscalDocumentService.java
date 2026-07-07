@@ -232,6 +232,9 @@ public class FiscalDocumentService {
             if (isSpainJurisdiction(organization) && request.getFiscalProvider() == FiscalProviderType.AFIP_NATIVE) {
                 throw new IllegalArgumentException("AFIP native provider is not available for Spanish organizations");
             }
+            if (!isSpainJurisdiction(organization) && request.getFiscalProvider() == FiscalProviderType.VERIFACTU_NATIVE) {
+                throw new IllegalArgumentException("Verifactu native provider is only available for Spanish organizations");
+            }
             organization.setFiscalProvider(request.getFiscalProvider());
         }
 

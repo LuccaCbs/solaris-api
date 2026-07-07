@@ -7,6 +7,9 @@ import com.luccavergara.solaris.entity.Organization;
 import com.luccavergara.solaris.fiscal.afip.AfipCredentials;
 import com.luccavergara.solaris.fiscal.afip.AfipNativeFiscalProvider;
 import com.luccavergara.solaris.fiscal.afip.AfipProperties;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuCredentials;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuNativeFiscalProvider;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,7 +23,9 @@ public class FiscalProviderFactory {
     private final MockFiscalProvider mockFiscalProvider;
     private final TusFacturasFiscalProvider tusFacturasFiscalProvider;
     private final AfipNativeFiscalProvider afipNativeFiscalProvider;
+    private final VerifactuNativeFiscalProvider verifactuNativeFiscalProvider;
     private final AfipProperties afipProperties;
+    private final VerifactuProperties verifactuProperties;
     private final ObjectMapper objectMapper;
 
     public FiscalProvider resolve(Organization organization) {
@@ -58,7 +63,7 @@ public class FiscalProviderFactory {
                 return mockFiscalProvider;
             }
 
-            if (!hasCertificateConfig(organization)) {
+            if (!hasAfipCertificateConfig(organization)) {
                 log.warn(
                         "Organization {} configured for AFIP_NATIVE but certificate is missing "
                                 + "(expected org fiscal_api_key certPath/certBase64 or afip.cert.* env) "
@@ -74,15 +79,52 @@ public class FiscalProviderFactory {
             return new AfipNativeAwareProvider(afipNativeFiscalProvider, credentials);
         }
 
+        if (configured == FiscalProviderType.VERIFACTU_NATIVE) {
+            if (organization.getFiscalJurisdiction() != FiscalJurisdiction.ES_VERIFACTU) {
+                log.warn(
+                        "Organization {} is not ES_VERIFACTU but VERIFACTU_NATIVE was configured — using MOCK provider",
+                        organization.getId()
+                );
+                return mockFiscalProvider;
+            }
+
+            if (!hasVerifactuCertificateConfig(organization)) {
+                log.warn(
+                        "Organization {} configured for VERIFACTU_NATIVE but certificate is missing "
+                                + "(expected org fiscal_api_key certPath/certBase64 or verifactu.cert.* env) "
+                                + "— falling back to MOCK provider",
+                        organization.getId()
+                );
+                return mockFiscalProvider;
+            }
+
+            VerifactuCredentials credentials = VerifactuCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                    .orElse(VerifactuCredentials.empty());
+
+            return new VerifactuNativeAwareProvider(
+                    verifactuNativeFiscalProvider,
+                    credentials,
+                    organization.getId()
+            );
+        }
+
         return mockFiscalProvider;
     }
 
-    private boolean hasCertificateConfig(Organization organization) {
+    private boolean hasAfipCertificateConfig(Organization organization) {
         return AfipCredentials.parse(organization.getFiscalApiKey(), objectMapper)
                 .map(AfipCredentials::hasCertificateReference)
                 .orElse(false)
                 || StringUtils.hasText(afipProperties.getCert().getPath())
                 || StringUtils.hasText(afipProperties.getCert().getBase64());
+    }
+
+    private boolean hasVerifactuCertificateConfig(Organization organization) {
+        return VerifactuCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                .map(VerifactuCredentials::hasCertificateReference)
+                .orElse(false)
+                || StringUtils.hasText(verifactuProperties.getCert().getPath())
+                || StringUtils.hasText(verifactuProperties.getCert().getBase64());
     }
 
     private record TusFacturasAwareProvider(
@@ -109,6 +151,23 @@ public class FiscalProviderFactory {
         @Override
         public EmitInvoiceResult emitInvoice(EmitInvoiceCommand command) {
             return delegate.emitInvoice(command, credentials);
+        }
+
+        @Override
+        public EmitInvoiceResult emitCreditNote(EmitCreditNoteCommand command) {
+            return delegate.emitCreditNote(command);
+        }
+    }
+
+    private record VerifactuNativeAwareProvider(
+            VerifactuNativeFiscalProvider delegate,
+            VerifactuCredentials credentials,
+            Long organizationId
+    ) implements FiscalProvider {
+
+        @Override
+        public EmitInvoiceResult emitInvoice(EmitInvoiceCommand command) {
+            return delegate.emitInvoice(command, credentials, organizationId);
         }
 
         @Override
