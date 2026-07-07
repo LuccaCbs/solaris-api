@@ -37,18 +37,18 @@ public class VerifactuNativeFiscalProvider implements FiscalProvider {
             VerifactuCredentials credentials,
             Long organizationId
     ) {
-        String nif = resolveNif(command, credentials);
+        String nif = resolveNif(command.getEmitterCuit(), credentials);
         if (!StringUtils.hasText(nif)) {
-            return rejected(command, "Verifactu NIF/CIF is required (organization or credentials)", null);
+            return rejectedInvoice(command, "Verifactu NIF/CIF is required (organization or credentials)", null);
         }
 
         if (!SpainTaxIdValidator.isValid(nif)) {
-            return rejected(command, "Verifactu NIF/CIF format is invalid", null);
+            return rejectedInvoice(command, "Verifactu NIF/CIF format is invalid", null);
         }
 
         String emitterRazonSocial = command.getEmitterRazonSocial();
         if (!StringUtils.hasText(emitterRazonSocial)) {
-            return rejected(command, "Business name (razon social) is required for Verifactu", null);
+            return rejectedInvoice(command, "Business name (razon social) is required for Verifactu", null);
         }
 
         try {
@@ -62,35 +62,70 @@ public class VerifactuNativeFiscalProvider implements FiscalProvider {
             );
 
             if (!authorization.isAuthorized()) {
-                return rejected(command, authorization.getRejectionReason(), authorization.getRequestXml());
+                return rejectedInvoice(command, authorization.getRejectionReason(), authorization.getRequestXml());
             }
 
-            return EmitInvoiceResult.builder()
-                    .tipoComprobante(authorization.getTipoComprobante())
-                    .puntoVenta(authorization.getPuntoVenta())
-                    .numeroComprobante(authorization.getNumeroComprobante())
-                    .cae(authorization.getHuella())
-                    .caeVencimiento(null)
-                    .pdfUrl(authorization.getQrUrl())
-                    .rawJson(toRawJson(authorization))
-                    .authorized(true)
-                    .build();
+            return toAuthorizedResult(authorization, "alta");
         } catch (Exception ex) {
             log.error("Verifactu native invoice emission failed: {}", ex.getMessage());
-            return rejected(command, "Verifactu request failed: " + ex.getMessage(), null);
+            return rejectedInvoice(command, "Verifactu request failed: " + ex.getMessage(), null);
         }
     }
 
     @Override
     public EmitInvoiceResult emitCreditNote(EmitCreditNoteCommand command) {
-        throw new UnsupportedOperationException(
-                "Verifactu native credit notes are not supported in POC — planned for Phase 1"
+        throw new IllegalStateException(
+                "Verifactu native provider requires credentials; use emitCreditNote(command, credentials, organizationId)"
         );
     }
 
-    private String resolveNif(EmitInvoiceCommand command, VerifactuCredentials credentials) {
-        if (StringUtils.hasText(command.getEmitterCuit())) {
-            return SpainTaxIdValidator.normalize(command.getEmitterCuit());
+    public EmitInvoiceResult emitCreditNote(
+            EmitCreditNoteCommand command,
+            VerifactuCredentials credentials,
+            Long organizationId
+    ) {
+        String nif = resolveNif(command.getEmitterCuit(), credentials);
+        if (!StringUtils.hasText(nif)) {
+            return rejectedCreditNote(command, "Verifactu NIF/CIF is required (organization or credentials)", null);
+        }
+
+        if (!SpainTaxIdValidator.isValid(nif)) {
+            return rejectedCreditNote(command, "Verifactu NIF/CIF format is invalid", null);
+        }
+
+        if (command.getRelatedInvoiceNumero() == null && !StringUtils.hasText(command.getRelatedNumSerieFactura())) {
+            return rejectedCreditNote(command, "Related invoice reference is required for Verifactu cancellation", null);
+        }
+
+        String emitterRazonSocial = command.getEmitterRazonSocial();
+        if (!StringUtils.hasText(emitterRazonSocial)) {
+            return rejectedCreditNote(command, "Business name (razon social) is required for Verifactu", null);
+        }
+
+        try {
+            String previousHash = hashChainService.resolvePreviousHash(organizationId);
+            VerifactuInvoiceAuthorization authorization = aeatClient.submitAnulacion(
+                    command,
+                    credentials,
+                    nif,
+                    emitterRazonSocial,
+                    previousHash
+            );
+
+            if (!authorization.isAuthorized()) {
+                return rejectedCreditNote(command, authorization.getRejectionReason(), authorization.getRequestXml());
+            }
+
+            return toAuthorizedResult(authorization, "anulacion");
+        } catch (Exception ex) {
+            log.error("Verifactu native cancellation failed: {}", ex.getMessage());
+            return rejectedCreditNote(command, "Verifactu cancellation failed: " + ex.getMessage(), null);
+        }
+    }
+
+    private String resolveNif(String emitterTaxId, VerifactuCredentials credentials) {
+        if (StringUtils.hasText(emitterTaxId)) {
+            return SpainTaxIdValidator.normalize(emitterTaxId);
         }
         if (credentials != null && StringUtils.hasText(credentials.nif())) {
             return SpainTaxIdValidator.normalize(credentials.nif());
@@ -99,7 +134,20 @@ public class VerifactuNativeFiscalProvider implements FiscalProvider {
         return StringUtils.hasText(globalNif) ? SpainTaxIdValidator.normalize(globalNif) : null;
     }
 
-    private EmitInvoiceResult rejected(EmitInvoiceCommand command, String reason, String rawXml) {
+    private EmitInvoiceResult toAuthorizedResult(VerifactuInvoiceAuthorization authorization, String operation) {
+        return EmitInvoiceResult.builder()
+                .tipoComprobante(authorization.getTipoComprobante())
+                .puntoVenta(authorization.getPuntoVenta())
+                .numeroComprobante(authorization.getNumeroComprobante())
+                .cae(authorization.getHuella())
+                .caeVencimiento(null)
+                .pdfUrl(authorization.getQrUrl())
+                .rawJson(toRawJson(authorization, operation))
+                .authorized(true)
+                .build();
+    }
+
+    private EmitInvoiceResult rejectedInvoice(EmitInvoiceCommand command, String reason, String rawXml) {
         return EmitInvoiceResult.builder()
                 .tipoComprobante(command.getTipoComprobante())
                 .puntoVenta(command.getPuntoVenta())
@@ -110,9 +158,23 @@ public class VerifactuNativeFiscalProvider implements FiscalProvider {
                 .build();
     }
 
-    private String toRawJson(VerifactuInvoiceAuthorization authorization) {
+    private EmitInvoiceResult rejectedCreditNote(EmitCreditNoteCommand command, String reason, String rawXml) {
+        return EmitInvoiceResult.builder()
+                .tipoComprobante(command.getTipoComprobante())
+                .puntoVenta(command.getPuntoVenta())
+                .numeroComprobante(command.getNumeroComprobante() != null
+                        ? command.getNumeroComprobante()
+                        : command.getRelatedInvoiceNumero())
+                .authorized(false)
+                .rejectionReason(reason)
+                .rawJson(rawXml != null ? rawXml : toRejectedJson(reason))
+                .build();
+    }
+
+    private String toRawJson(VerifactuInvoiceAuthorization authorization, String operation) {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put("provider", "VERIFACTU_NATIVE");
+        raw.put("operation", operation);
         raw.put("huella", authorization.getHuella());
         raw.put("qrUrl", authorization.getQrUrl());
         raw.put("punto_venta", authorization.getPuntoVenta());

@@ -172,7 +172,7 @@ public class FiscalProviderFactory {
 
         @Override
         public EmitInvoiceResult emitCreditNote(EmitCreditNoteCommand command) {
-            return delegate.emitCreditNote(command);
+            return delegate.emitCreditNote(command, credentials, organizationId);
         }
     }
 }

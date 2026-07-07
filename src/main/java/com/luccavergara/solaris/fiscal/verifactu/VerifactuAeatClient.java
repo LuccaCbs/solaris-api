@@ -1,12 +1,14 @@
 package com.luccavergara.solaris.fiscal.verifactu;
 
 import com.luccavergara.solaris.entity.TipoComprobante;
+import com.luccavergara.solaris.fiscal.EmitCreditNoteCommand;
 import com.luccavergara.solaris.fiscal.EmitInvoiceCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 @Component
 @RequiredArgsConstructor
@@ -14,10 +16,12 @@ public class VerifactuAeatClient {
 
     private static final String SOAP_ACTION =
             "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SistemaFacturacion.wsdl/RegFactuSistemaFacturacion";
+    private static final DateTimeFormatter EXPEDITION_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final VerifactuProperties verifactuProperties;
     private final VerifactuHashCalculator hashCalculator;
     private final VerifactuXmlBuilder xmlBuilder;
+    private final VerifactuRecordSigner recordSigner;
     private final VerifactuHttpTransport httpTransport;
     private final VerifactuCertificateLoader certificateLoader;
     private final VerifactuXmlHelper xmlHelper;
@@ -64,7 +68,14 @@ public class VerifactuAeatClient {
                 resolveInstallationNumber(credentials)
         );
 
-        String envelope = xmlBuilder.buildRegFactuEnvelope(submission);
+        String registroFragment = xmlBuilder.buildRegistroAltaFragment(submission);
+        String envelope = buildSignedEnvelope(
+                credentials,
+                nif,
+                emitterRazonSocial,
+                registroFragment
+        );
+
         String qrUrl = qrUrlBuilder.buildValidationUrl(
                 verifactuProperties,
                 nif,
@@ -74,11 +85,104 @@ public class VerifactuAeatClient {
                 huella
         );
 
+        return dispatch(
+                command.getTipoComprobante(),
+                command.getPuntoVenta(),
+                command.getNumeroComprobante(),
+                huella,
+                qrUrl,
+                envelope,
+                credentials
+        );
+    }
+
+    public VerifactuInvoiceAuthorization submitAnulacion(
+            EmitCreditNoteCommand command,
+            VerifactuCredentials credentials,
+            String nif,
+            String emitterRazonSocial,
+            String previousHash
+    ) {
+        String numSerieFacturaAnulada = resolveRelatedNumSerieFactura(command, credentials);
+        String fechaExpedicionAnulada = resolveRelatedFechaExpedicion(command);
+        String fechaHora = VerifactuXmlBuilder.VerifactuSubmission.nowIsoSpain();
+
+        VerifactuHashCalculator.VerifactuAnulacionRecord hashInput =
+                new VerifactuHashCalculator.VerifactuAnulacionRecord(
+                        nif,
+                        numSerieFacturaAnulada,
+                        fechaExpedicionAnulada,
+                        previousHash == null ? "" : previousHash,
+                        fechaHora
+                );
+
+        String huella = hashCalculator.calculateAnulacionFingerprint(hashInput);
+        VerifactuXmlBuilder.VerifactuAnulacionSubmission submission = new VerifactuXmlBuilder.VerifactuAnulacionSubmission(
+                nif,
+                emitterRazonSocial,
+                numSerieFacturaAnulada,
+                fechaExpedicionAnulada,
+                huella,
+                fechaHora,
+                emitterRazonSocial,
+                resolveSoftwareName(credentials),
+                resolveSoftwareId(credentials),
+                resolveSoftwareVersion(credentials),
+                resolveInstallationNumber(credentials)
+        );
+
+        String registroFragment = xmlBuilder.buildRegistroAnulacionFragment(submission);
+        String envelope = buildSignedEnvelope(
+                credentials,
+                nif,
+                emitterRazonSocial,
+                registroFragment
+        );
+
+        TipoComprobante tipo = command.getTipoComprobante() != null
+                ? command.getTipoComprobante()
+                : TipoComprobante.FACTURA_B;
+
+        return dispatch(
+                tipo,
+                command.getPuntoVenta(),
+                command.getNumeroComprobante() != null ? command.getNumeroComprobante() : command.getRelatedInvoiceNumero(),
+                huella,
+                null,
+                envelope,
+                credentials
+        );
+    }
+
+    private String buildSignedEnvelope(
+            VerifactuCredentials credentials,
+            String nif,
+            String emitterRazonSocial,
+            String registroFragment
+    ) {
+        if (!verifactuProperties.getSignature().isEnabled()) {
+            return xmlBuilder.buildRegFactuEnvelope(nif, emitterRazonSocial, registroFragment);
+        }
+
+        VerifactuCertificateLoader.VerifactuKeyMaterial keyMaterial = certificateLoader.load(credentials);
+        String signedRegistro = recordSigner.sign(registroFragment, keyMaterial);
+        return xmlBuilder.buildRegFactuEnvelope(nif, emitterRazonSocial, signedRegistro);
+    }
+
+    private VerifactuInvoiceAuthorization dispatch(
+            TipoComprobante tipoComprobante,
+            Integer puntoVenta,
+            Long numeroComprobante,
+            String huella,
+            String qrUrl,
+            String envelope,
+            VerifactuCredentials credentials
+    ) {
         if (!verifactuProperties.getSandbox().isEnabled()) {
             return VerifactuInvoiceAuthorization.rejected(
-                    command.getTipoComprobante(),
-                    command.getPuntoVenta(),
-                    command.getNumeroComprobante(),
+                    tipoComprobante,
+                    puntoVenta,
+                    numeroComprobante,
                     huella,
                     qrUrl,
                     envelope,
@@ -95,12 +199,12 @@ public class VerifactuAeatClient {
                     keyMaterial
             );
 
-            return parseResponse(command, huella, qrUrl, envelope, response);
+            return parseResponse(tipoComprobante, puntoVenta, numeroComprobante, huella, qrUrl, envelope, response);
         } catch (Exception ex) {
             return VerifactuInvoiceAuthorization.rejected(
-                    command.getTipoComprobante(),
-                    command.getPuntoVenta(),
-                    command.getNumeroComprobante(),
+                    tipoComprobante,
+                    puntoVenta,
+                    numeroComprobante,
                     huella,
                     qrUrl,
                     envelope,
@@ -110,7 +214,9 @@ public class VerifactuAeatClient {
     }
 
     private VerifactuInvoiceAuthorization parseResponse(
-            EmitInvoiceCommand command,
+            TipoComprobante tipoComprobante,
+            Integer puntoVenta,
+            Long numeroComprobante,
             String huella,
             String qrUrl,
             String requestXml,
@@ -119,9 +225,9 @@ public class VerifactuAeatClient {
         String fault = xmlHelper.firstFault(responseXml);
         if (StringUtils.hasText(fault)) {
             return VerifactuInvoiceAuthorization.rejected(
-                    command.getTipoComprobante(),
-                    command.getPuntoVenta(),
-                    command.getNumeroComprobante(),
+                    tipoComprobante,
+                    puntoVenta,
+                    numeroComprobante,
                     huella,
                     qrUrl,
                     requestXml,
@@ -148,9 +254,9 @@ public class VerifactuAeatClient {
             }
 
             return VerifactuInvoiceAuthorization.rejected(
-                    command.getTipoComprobante(),
-                    command.getPuntoVenta(),
-                    command.getNumeroComprobante(),
+                    tipoComprobante,
+                    puntoVenta,
+                    numeroComprobante,
                     huella,
                     qrUrl,
                     requestXml,
@@ -159,14 +265,33 @@ public class VerifactuAeatClient {
         }
 
         return VerifactuInvoiceAuthorization.authorized(
-                command.getTipoComprobante(),
-                command.getPuntoVenta(),
-                command.getNumeroComprobante(),
+                tipoComprobante,
+                puntoVenta,
+                numeroComprobante,
                 huella,
                 qrUrl,
                 requestXml,
                 responseXml
         );
+    }
+
+    private String resolveRelatedNumSerieFactura(EmitCreditNoteCommand command, VerifactuCredentials credentials) {
+        if (StringUtils.hasText(command.getRelatedNumSerieFactura())) {
+            return command.getRelatedNumSerieFactura().trim();
+        }
+
+        int serie = credentials.serie() != null
+                ? credentials.serie()
+                : command.getPuntoVenta() != null ? command.getPuntoVenta() : verifactuProperties.getSerie();
+        long numero = command.getRelatedInvoiceNumero() != null ? command.getRelatedInvoiceNumero() : 1L;
+        return serie + "-" + numero;
+    }
+
+    private String resolveRelatedFechaExpedicion(EmitCreditNoteCommand command) {
+        if (StringUtils.hasText(command.getRelatedFechaExpedicion())) {
+            return command.getRelatedFechaExpedicion().trim();
+        }
+        return formatDate(LocalDate.now());
     }
 
     private String resolveTipoFactura(EmitInvoiceCommand command) {
@@ -213,7 +338,7 @@ public class VerifactuAeatClient {
     }
 
     private String formatDate(LocalDate date) {
-        return String.format("%02d-%02d-%04d", date.getDayOfMonth(), date.getMonthValue(), date.getYear());
+        return EXPEDITION_DATE.format(date);
     }
 
     private String formatAmount(java.math.BigDecimal amount) {

@@ -2,6 +2,7 @@ package com.luccavergara.solaris.fiscal.verifactu;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luccavergara.solaris.entity.TipoComprobante;
+import com.luccavergara.solaris.fiscal.EmitCreditNoteCommand;
 import com.luccavergara.solaris.fiscal.EmitInvoiceCommand;
 import com.luccavergara.solaris.fiscal.EmitInvoiceResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,47 @@ class VerifactuNativeFiscalProviderTest {
         assertThat(result.isAuthorized()).isTrue();
         assertThat(result.getCae()).isEqualTo("ABCDEF1234567890");
         assertThat(result.getPdfUrl()).contains("ValidarQR");
+    }
+
+    @Test
+    void emitCreditNote_submitsAnulacionWhenRelatedInvoicePresent() {
+        EmitCreditNoteCommand command = EmitCreditNoteCommand.builder()
+                .emitterCuit("B12345678")
+                .emitterRazonSocial("Solaris ES SL")
+                .puntoVenta(1)
+                .relatedInvoiceNumero(42L)
+                .relatedFechaExpedicion("07-07-2026")
+                .build();
+
+        when(hashChainService.resolvePreviousHash(7L)).thenReturn("PREV");
+        when(aeatClient.submitAnulacion(any(), any(), eq("B12345678"), eq("Solaris ES SL"), eq("PREV")))
+                .thenReturn(VerifactuInvoiceAuthorization.authorized(
+                        TipoComprobante.FACTURA_B,
+                        1,
+                        42L,
+                        "ANULACIONHASH",
+                        null,
+                        "<request/>",
+                        "<response/>"
+                ));
+
+        EmitInvoiceResult result = provider.emitCreditNote(command, VerifactuCredentials.empty(), 7L);
+
+        assertThat(result.isAuthorized()).isTrue();
+        assertThat(result.getCae()).isEqualTo("ANULACIONHASH");
+    }
+
+    @Test
+    void emitCreditNote_rejectsWhenRelatedInvoiceMissing() {
+        EmitCreditNoteCommand command = EmitCreditNoteCommand.builder()
+                .emitterCuit("B12345678")
+                .emitterRazonSocial("Solaris ES SL")
+                .build();
+
+        EmitInvoiceResult result = provider.emitCreditNote(command, VerifactuCredentials.empty(), 1L);
+
+        assertThat(result.isAuthorized()).isFalse();
+        assertThat(result.getRejectionReason()).contains("Related invoice");
     }
 
     @Test

@@ -17,61 +17,43 @@ public class VerifactuXmlBuilder {
             "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
     private static final DateTimeFormatter EXPEDITION_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
-    public String buildRegFactuEnvelope(VerifactuSubmission submission) {
+    public String buildRegistroAltaFragment(VerifactuSubmission submission) {
         EmitInvoiceCommand command = submission.command();
         String destinatarios = buildDestinatarios(command);
         String desglose = buildDesglose(command);
 
         return """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sfLR="%s">
-                  <soapenv:Header/>
-                  <soapenv:Body>
-                    <sfLR:RegFactuSistemaFacturacion>
-                      <sfLR:Cabecera>
-                        <sfLR:ObligadoEmision>
-                          <sfLR:NombreRazon>%s</sfLR:NombreRazon>
-                          <sfLR:NIF>%s</sfLR:NIF>
-                        </sfLR:ObligadoEmision>
-                      </sfLR:Cabecera>
-                      <sfLR:RegistroFactura>
-                        <sfLR:RegistroAlta>
-                          <sfLR:IDVersion>1.0</sfLR:IDVersion>
-                          <sfLR:IDFactura>
-                            <sfLR:IDEmisorFactura>%s</sfLR:IDEmisorFactura>
-                            <sfLR:NumSerieFactura>%s</sfLR:NumSerieFactura>
-                            <sfLR:FechaExpedicionFactura>%s</sfLR:FechaExpedicionFactura>
-                          </sfLR:IDFactura>
-                          <sfLR:NombreRazonEmisor>%s</sfLR:NombreRazonEmisor>
-                          <sfLR:TipoFactura>%s</sfLR:TipoFactura>
-                          <sfLR:DescripcionOperacion>%s</sfLR:DescripcionOperacion>
-                          %s
-                          <sfLR:Desglose>%s</sfLR:Desglose>
-                          <sfLR:CuotaTotal>%s</sfLR:CuotaTotal>
-                          <sfLR:ImporteTotal>%s</sfLR:ImporteTotal>
-                          <sfLR:SistemaInformatico>
-                            <sfLR:NombreRazon>%s</sfLR:NombreRazon>
-                            <sfLR:NIF>%s</sfLR:NIF>
-                            <sfLR:NombreSistemaInformatico>%s</sfLR:NombreSistemaInformatico>
-                            <sfLR:IdSistemaInformatico>%s</sfLR:IdSistemaInformatico>
-                            <sfLR:Version>%s</sfLR:Version>
-                            <sfLR:NumeroInstalacion>%s</sfLR:NumeroInstalacion>
-                            <sfLR:TipoUsoPosibleSoloVerifactu>S</sfLR:TipoUsoPosibleSoloVerifactu>
-                            <sfLR:TipoUsoPosibleMultiOT>N</sfLR:TipoUsoPosibleMultiOT>
-                            <sfLR:IndicadorMultiplesOT>N</sfLR:IndicadorMultiplesOT>
-                          </sfLR:SistemaInformatico>
-                          <sfLR:TipoHuella>01</sfLR:TipoHuella>
-                          <sfLR:Huella>%s</sfLR:Huella>
-                          <sfLR:FechaHoraHusoGenRegistro>%s</sfLR:FechaHoraHusoGenRegistro>
-                        </sfLR:RegistroAlta>
-                      </sfLR:RegistroFactura>
-                    </sfLR:RegFactuSistemaFacturacion>
-                  </soapenv:Body>
-                </soapenv:Envelope>
+                <sfLR:RegistroAlta xmlns:sfLR="%s">
+                  <sfLR:IDVersion>1.0</sfLR:IDVersion>
+                  <sfLR:IDFactura>
+                    <sfLR:IDEmisorFactura>%s</sfLR:IDEmisorFactura>
+                    <sfLR:NumSerieFactura>%s</sfLR:NumSerieFactura>
+                    <sfLR:FechaExpedicionFactura>%s</sfLR:FechaExpedicionFactura>
+                  </sfLR:IDFactura>
+                  <sfLR:NombreRazonEmisor>%s</sfLR:NombreRazonEmisor>
+                  <sfLR:TipoFactura>%s</sfLR:TipoFactura>
+                  <sfLR:DescripcionOperacion>%s</sfLR:DescripcionOperacion>
+                  %s
+                  <sfLR:Desglose>%s</sfLR:Desglose>
+                  <sfLR:CuotaTotal>%s</sfLR:CuotaTotal>
+                  <sfLR:ImporteTotal>%s</sfLR:ImporteTotal>
+                  <sfLR:SistemaInformatico>
+                    <sfLR:NombreRazon>%s</sfLR:NombreRazon>
+                    <sfLR:NIF>%s</sfLR:NIF>
+                    <sfLR:NombreSistemaInformatico>%s</sfLR:NombreSistemaInformatico>
+                    <sfLR:IdSistemaInformatico>%s</sfLR:IdSistemaInformatico>
+                    <sfLR:Version>%s</sfLR:Version>
+                    <sfLR:NumeroInstalacion>%s</sfLR:NumeroInstalacion>
+                    <sfLR:TipoUsoPosibleSoloVerifactu>S</sfLR:TipoUsoPosibleSoloVerifactu>
+                    <sfLR:TipoUsoPosibleMultiOT>N</sfLR:TipoUsoPosibleMultiOT>
+                    <sfLR:IndicadorMultiplesOT>N</sfLR:IndicadorMultiplesOT>
+                  </sfLR:SistemaInformatico>
+                  <sfLR:TipoHuella>01</sfLR:TipoHuella>
+                  <sfLR:Huella>%s</sfLR:Huella>
+                  <sfLR:FechaHoraHusoGenRegistro>%s</sfLR:FechaHoraHusoGenRegistro>
+                </sfLR:RegistroAlta>
                 """.formatted(
                 NAMESPACE,
-                VerifactuXmlHelper.escapeXml(submission.emitterRazonSocial()),
-                VerifactuXmlHelper.escapeXml(submission.nif()),
                 VerifactuXmlHelper.escapeXml(submission.nif()),
                 VerifactuXmlHelper.escapeXml(submission.numSerieFactura()),
                 EXPEDITION_DATE.format(submission.fechaExpedicion()),
@@ -93,18 +75,91 @@ public class VerifactuXmlBuilder {
         );
     }
 
+    public String buildRegistroAnulacionFragment(VerifactuAnulacionSubmission submission) {
+        return """
+                <sfLR:RegistroAnulacion xmlns:sfLR="%s">
+                  <sfLR:IDVersion>1.0</sfLR:IDVersion>
+                  <sfLR:IDFactura>
+                    <sfLR:IDEmisorFacturaAnulada>%s</sfLR:IDEmisorFacturaAnulada>
+                    <sfLR:NumSerieFacturaAnulada>%s</sfLR:NumSerieFacturaAnulada>
+                    <sfLR:FechaExpedicionFacturaAnulada>%s</sfLR:FechaExpedicionFacturaAnulada>
+                  </sfLR:IDFactura>
+                  <sfLR:SistemaInformatico>
+                    <sfLR:NombreRazon>%s</sfLR:NombreRazon>
+                    <sfLR:NIF>%s</sfLR:NIF>
+                    <sfLR:NombreSistemaInformatico>%s</sfLR:NombreSistemaInformatico>
+                    <sfLR:IdSistemaInformatico>%s</sfLR:IdSistemaInformatico>
+                    <sfLR:Version>%s</sfLR:Version>
+                    <sfLR:NumeroInstalacion>%s</sfLR:NumeroInstalacion>
+                    <sfLR:TipoUsoPosibleSoloVerifactu>S</sfLR:TipoUsoPosibleSoloVerifactu>
+                    <sfLR:TipoUsoPosibleMultiOT>N</sfLR:TipoUsoPosibleMultiOT>
+                    <sfLR:IndicadorMultiplesOT>N</sfLR:IndicadorMultiplesOT>
+                  </sfLR:SistemaInformatico>
+                  <sfLR:TipoHuella>01</sfLR:TipoHuella>
+                  <sfLR:Huella>%s</sfLR:Huella>
+                  <sfLR:FechaHoraHusoGenRegistro>%s</sfLR:FechaHoraHusoGenRegistro>
+                </sfLR:RegistroAnulacion>
+                """.formatted(
+                NAMESPACE,
+                VerifactuXmlHelper.escapeXml(submission.nif()),
+                VerifactuXmlHelper.escapeXml(submission.numSerieFacturaAnulada()),
+                VerifactuXmlHelper.escapeXml(submission.fechaExpedicionFacturaAnulada()),
+                VerifactuXmlHelper.escapeXml(submission.softwareVendorName()),
+                VerifactuXmlHelper.escapeXml(submission.nif()),
+                VerifactuXmlHelper.escapeXml(submission.softwareName()),
+                VerifactuXmlHelper.escapeXml(submission.softwareId()),
+                VerifactuXmlHelper.escapeXml(submission.softwareVersion()),
+                VerifactuXmlHelper.escapeXml(submission.installationNumber()),
+                VerifactuXmlHelper.escapeXml(submission.huella()),
+                submission.fechaHoraHusoGenRegistro()
+        );
+    }
+
+    public String buildRegFactuEnvelope(String nif, String emitterRazonSocial, String signedRegistroFacturaInner) {
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sfLR="%s">
+                  <soapenv:Header/>
+                  <soapenv:Body>
+                    <sfLR:RegFactuSistemaFacturacion>
+                      <sfLR:Cabecera>
+                        <sfLR:ObligadoEmision>
+                          <sfLR:NombreRazon>%s</sfLR:NombreRazon>
+                          <sfLR:NIF>%s</sfLR:NIF>
+                        </sfLR:ObligadoEmision>
+                      </sfLR:Cabecera>
+                      <sfLR:RegistroFactura>
+                        %s
+                      </sfLR:RegistroFactura>
+                    </sfLR:RegFactuSistemaFacturacion>
+                  </soapenv:Body>
+                </soapenv:Envelope>
+                """.formatted(
+                NAMESPACE,
+                VerifactuXmlHelper.escapeXml(emitterRazonSocial),
+                VerifactuXmlHelper.escapeXml(nif),
+                signedRegistroFacturaInner
+        );
+    }
+
+    /** @deprecated kept for backward compatibility in tests; prefer fragment + envelope builders. */
+    public String buildRegFactuEnvelope(VerifactuSubmission submission) {
+        String registro = buildRegistroAltaFragment(submission);
+        return buildRegFactuEnvelope(submission.nif(), submission.emitterRazonSocial(), registro);
+    }
+
     private String buildDestinatarios(EmitInvoiceCommand command) {
         if (!hasCustomer(command)) {
             return "";
         }
 
         return """
-                          <sfLR:Destinatarios>
-                            <sfLR:IDDestinatario>
-                              <sfLR:NombreRazon>%s</sfLR:NombreRazon>
-                              <sfLR:NIF>%s</sfLR:NIF>
-                            </sfLR:IDDestinatario>
-                          </sfLR:Destinatarios>
+                  <sfLR:Destinatarios>
+                    <sfLR:IDDestinatario>
+                      <sfLR:NombreRazon>%s</sfLR:NombreRazon>
+                      <sfLR:NIF>%s</sfLR:NIF>
+                    </sfLR:IDDestinatario>
+                  </sfLR:Destinatarios>
                 """.formatted(
                 VerifactuXmlHelper.escapeXml(command.getCustomerRazonSocial()),
                 VerifactuXmlHelper.escapeXml(command.getCustomerDocumentNumber())
@@ -113,14 +168,14 @@ public class VerifactuXmlBuilder {
 
     private String buildDesglose(EmitInvoiceCommand command) {
         return """
-                            <sfLR:DetalleDesglose>
-                              <sfLR:Impuesto>01</sfLR:Impuesto>
-                              <sfLR:ClaveRegimen>01</sfLR:ClaveRegimen>
-                              <sfLR:CalificacionOperacion>S1</sfLR:CalificacionOperacion>
-                              <sfLR:TipoImpositivo>21</sfLR:TipoImpositivo>
-                              <sfLR:BaseImponibleOimporteNoSujeto>%s</sfLR:BaseImponibleOimporteNoSujeto>
-                              <sfLR:CuotaRepercutida>%s</sfLR:CuotaRepercutida>
-                            </sfLR:DetalleDesglose>
+                    <sfLR:DetalleDesglose>
+                      <sfLR:Impuesto>01</sfLR:Impuesto>
+                      <sfLR:ClaveRegimen>01</sfLR:ClaveRegimen>
+                      <sfLR:CalificacionOperacion>S1</sfLR:CalificacionOperacion>
+                      <sfLR:TipoImpositivo>21</sfLR:TipoImpositivo>
+                      <sfLR:BaseImponibleOimporteNoSujeto>%s</sfLR:BaseImponibleOimporteNoSujeto>
+                      <sfLR:CuotaRepercutida>%s</sfLR:CuotaRepercutida>
+                    </sfLR:DetalleDesglose>
                 """.formatted(
                 formatAmount(command.getImporteNeto()),
                 formatAmount(command.getImporteIva())
@@ -159,5 +214,20 @@ public class VerifactuXmlBuilder {
         public static String nowIsoSpain() {
             return OffsetDateTime.now(ZoneOffset.ofHours(1)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
+    }
+
+    public record VerifactuAnulacionSubmission(
+            String nif,
+            String emitterRazonSocial,
+            String numSerieFacturaAnulada,
+            String fechaExpedicionFacturaAnulada,
+            String huella,
+            String fechaHoraHusoGenRegistro,
+            String softwareVendorName,
+            String softwareName,
+            String softwareId,
+            String softwareVersion,
+            String installationNumber
+    ) {
     }
 }

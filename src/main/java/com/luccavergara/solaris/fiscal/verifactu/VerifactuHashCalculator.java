@@ -34,6 +34,21 @@ public class VerifactuHashCalculator {
         return sha256Hex(payload);
     }
 
+    public String calculateAnulacionFingerprint(VerifactuAnulacionRecord record) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("IDEmisorFacturaAnulada", normalize(record.idEmisorFacturaAnulada()));
+        fields.put("NumSerieFacturaAnulada", normalize(record.numSerieFacturaAnulada()));
+        fields.put("FechaExpedicionFacturaAnulada", normalize(record.fechaExpedicionFacturaAnulada()));
+        fields.put("Huella", normalize(record.huellaAnterior()));
+        fields.put("FechaHoraHusoGenRegistro", normalize(record.fechaHoraHusoGenRegistro()));
+
+        String payload = fields.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("&"));
+
+        return sha256Hex(payload);
+    }
+
     private String normalize(String value) {
         if (value == null) {
             return "";
@@ -75,6 +90,15 @@ public class VerifactuHashCalculator {
             String tipoFactura,
             String cuotaTotal,
             String importeTotal,
+            String huellaAnterior,
+            String fechaHoraHusoGenRegistro
+    ) {
+    }
+
+    public record VerifactuAnulacionRecord(
+            String idEmisorFacturaAnulada,
+            String numSerieFacturaAnulada,
+            String fechaExpedicionFacturaAnulada,
             String huellaAnterior,
             String fechaHoraHusoGenRegistro
     ) {

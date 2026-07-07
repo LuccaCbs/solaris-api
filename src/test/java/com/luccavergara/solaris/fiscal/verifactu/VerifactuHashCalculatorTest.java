@@ -26,4 +26,21 @@ class VerifactuHashCalculatorTest {
         assertThat(huella).hasSize(64);
         assertThat(huella).isEqualTo("3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60");
     }
+
+    @Test
+    void calculateAnulacionFingerprint_buildsDeterministicHash() {
+        VerifactuHashCalculator.VerifactuAnulacionRecord record =
+                new VerifactuHashCalculator.VerifactuAnulacionRecord(
+                        "89890001K",
+                        "1-42",
+                        "01-01-2024",
+                        "ABCDEF0123456789",
+                        "2024-01-01T19:20:30+01:00"
+                );
+
+        String huella = calculator.calculateAnulacionFingerprint(record);
+
+        assertThat(huella).hasSize(64);
+        assertThat(calculator.calculateAnulacionFingerprint(record)).isEqualTo(huella);
+    }
 }

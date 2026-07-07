@@ -14,7 +14,14 @@ public class VerifactuProperties {
     private Integer serie = 1;
     private Cert cert = new Cert();
     private Software software = new Software();
+    private Signature signature = new Signature();
     private boolean integrationTestEnabled = false;
+
+    @Getter
+    @Setter
+    public static class Signature {
+        private boolean enabled = true;
+    }
 
     @Getter
     @Setter
