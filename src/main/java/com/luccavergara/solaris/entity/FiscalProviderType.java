@@ -2,5 +2,6 @@ package com.luccavergara.solaris.entity;
 
 public enum FiscalProviderType {
     MOCK,
-    TUSFACTURAS
+    TUSFACTURAS,
+    AFIP_NATIVE
 }

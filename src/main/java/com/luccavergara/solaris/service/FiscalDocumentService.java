@@ -10,6 +10,8 @@ import com.luccavergara.solaris.entity.*;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.fiscal.*;
+import com.luccavergara.solaris.fiscal.afip.AfipCredentials;
+import com.luccavergara.solaris.fiscal.afip.AfipProperties;
 import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
@@ -43,6 +45,7 @@ public class FiscalDocumentService {
     private final FiscalProviderFactory fiscalProviderFactory;
     private final ObjectMapper objectMapper;
     private final EntitlementService entitlementService;
+    private final AfipProperties afipProperties;
 
     @Transactional
     public FiscalDocumentResponse emitInvoiceForSale(Long saleId, EmitInvoiceRequest request) {
@@ -226,6 +229,9 @@ public class FiscalDocumentService {
             if (isSpainJurisdiction(organization) && request.getFiscalProvider() == FiscalProviderType.TUSFACTURAS) {
                 throw new IllegalArgumentException("TusFacturas is not available for Spanish organizations");
             }
+            if (isSpainJurisdiction(organization) && request.getFiscalProvider() == FiscalProviderType.AFIP_NATIVE) {
+                throw new IllegalArgumentException("AFIP native provider is not available for Spanish organizations");
+            }
             organization.setFiscalProvider(request.getFiscalProvider());
         }
 
@@ -249,6 +255,24 @@ public class FiscalDocumentService {
 
         if (resolvePuntoVenta(organization) == null) {
             throw new IllegalStateException("Punto de venta is required for invoicing");
+        }
+
+        if (organization.getFiscalProvider() == FiscalProviderType.AFIP_NATIVE) {
+            validateAfipNativeConfig(organization);
+        }
+    }
+
+    private void validateAfipNativeConfig(Organization organization) {
+        boolean hasOrgCert = AfipCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                .map(AfipCredentials::hasCertificateReference)
+                .orElse(false);
+        boolean hasPlatformCert = StringUtils.hasText(afipProperties.getCert().getPath())
+                || StringUtils.hasText(afipProperties.getCert().getBase64());
+
+        if (!hasOrgCert && !hasPlatformCert) {
+            throw new IllegalStateException(
+                    "AFIP native provider requires a certificate (org fiscalApiKey certBase64/certPath)"
+            );
         }
     }
 
