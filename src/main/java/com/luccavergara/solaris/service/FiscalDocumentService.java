@@ -13,6 +13,7 @@ import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.fiscal.*;
 import com.luccavergara.solaris.fiscal.afip.AfipCredentials;
 import com.luccavergara.solaris.fiscal.afip.AfipProperties;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuFiscalPreviewService;
 import com.luccavergara.solaris.fiscal.verifactu.VerifactuProperties;
 import com.luccavergara.solaris.fiscal.verifactu.VerifactuSoftwareDeclarationService;
 import com.luccavergara.solaris.repository.FiscalDocumentRepository;
@@ -51,6 +52,7 @@ public class FiscalDocumentService {
     private final AfipProperties afipProperties;
     private final VerifactuProperties verifactuProperties;
     private final VerifactuSoftwareDeclarationService verifactuSoftwareDeclarationService;
+    private final VerifactuFiscalPreviewService verifactuFiscalPreviewService;
 
     @Transactional
     public FiscalDocumentResponse emitInvoiceForSale(Long saleId, EmitInvoiceRequest request) {
@@ -186,6 +188,20 @@ public class FiscalDocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
         return mapToFiscalConfigResponse(organization);
+    }
+
+    public String getVerifactuFiscalPreviewHtml(Long organizationId) {
+        validateOrganizationAccess(organizationId);
+        entitlementService.assertModule(organizationId, ModuleCode.FISCAL);
+
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+
+        if (organization.getFiscalProvider() != FiscalProviderType.VERIFACTU_NATIVE) {
+            throw new IllegalArgumentException("Organization is not configured for VERIFACTU_NATIVE");
+        }
+
+        return verifactuFiscalPreviewService.buildPreviewHtml(organization);
     }
 
     @Transactional

@@ -16,6 +16,7 @@ import com.luccavergara.solaris.service.SubscriptionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -203,5 +204,11 @@ public class OrganizationController {
             @Valid @RequestBody FiscalConfigRequest request
     ) {
         return fiscalDocumentService.updateFiscalConfig(orgId, request);
+    }
+
+    @GetMapping(value = "/{orgId}/fiscal/verifactu/preview", produces = MediaType.TEXT_HTML_VALUE)
+    @PreAuthorize("@organizationSecurity.canAccessOrganization(#orgId, T(com.luccavergara.solaris.entity.OrganizationMemberRole).ADMIN)")
+    public String previewVerifactuFiscalRepresentation(@PathVariable Long orgId) {
+        return fiscalDocumentService.getVerifactuFiscalPreviewHtml(orgId);
     }
 }

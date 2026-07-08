@@ -286,6 +286,18 @@ public class VerifactuAeatClient {
             );
         }
 
+        if (verifactuProperties.isIntegrationTestEnabled()) {
+            return VerifactuInvoiceAuthorization.authorized(
+                    tipoComprobante,
+                    puntoVenta,
+                    numeroComprobante,
+                    huella,
+                    qrUrl,
+                    envelope,
+                    "<integrationTest mode=\"dry-run\"/>"
+            );
+        }
+
         try {
             VerifactuCertificateLoader.VerifactuKeyMaterial keyMaterial = certificateLoader.load(credentials);
             String response = httpTransport.post(
