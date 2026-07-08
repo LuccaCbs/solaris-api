@@ -198,8 +198,8 @@ public class FiscalDocumentService {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
 
-        if (organization.getFiscalProvider() != FiscalProviderType.VERIFACTU_NATIVE) {
-            throw new IllegalArgumentException("Organization is not configured for VERIFACTU_NATIVE");
+        if (!isSpainJurisdiction(organization)) {
+            throw new IllegalArgumentException("Verifactu preview is only available for Spanish organizations");
         }
 
         return verifactuFiscalPreviewService.buildPreviewHtml(organization);
