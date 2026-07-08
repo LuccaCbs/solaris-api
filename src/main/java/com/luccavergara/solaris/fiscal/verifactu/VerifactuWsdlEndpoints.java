@@ -29,6 +29,9 @@ public final class VerifactuWsdlEndpoints {
     public static final String SANDBOX_QR_VALIDATION =
             "https://prewww1.aeat.es/wlpl/TIKE-CONT/ValidarQR";
 
+    public static final String PRODUCTION_QR_VALIDATION =
+            "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR";
+
     /** WSDL defines {@code soapAction=""} for all operations. */
     public static final String SOAP_ACTION = "";
 

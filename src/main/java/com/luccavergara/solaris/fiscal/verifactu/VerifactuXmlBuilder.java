@@ -21,6 +21,7 @@ public class VerifactuXmlBuilder {
         EmitInvoiceCommand command = submission.command();
         String destinatarios = buildDestinatarios(command);
         String desglose = buildDesglose(command);
+        String rectificativaSection = buildRectificativaSection(submission);
 
         return """
                 <sfLR:RegistroAlta xmlns:sfLR="%s">
@@ -32,6 +33,7 @@ public class VerifactuXmlBuilder {
                   </sfLR:IDFactura>
                   <sfLR:NombreRazonEmisor>%s</sfLR:NombreRazonEmisor>
                   <sfLR:TipoFactura>%s</sfLR:TipoFactura>
+                  %s
                   <sfLR:DescripcionOperacion>%s</sfLR:DescripcionOperacion>
                   %s
                   <sfLR:Desglose>%s</sfLR:Desglose>
@@ -59,6 +61,7 @@ public class VerifactuXmlBuilder {
                 EXPEDITION_DATE.format(submission.fechaExpedicion()),
                 VerifactuXmlHelper.escapeXml(submission.emitterRazonSocial()),
                 VerifactuXmlHelper.escapeXml(submission.tipoFactura()),
+                rectificativaSection,
                 VerifactuXmlHelper.escapeXml(submission.descripcionOperacion()),
                 destinatarios,
                 desglose,
@@ -166,7 +169,48 @@ public class VerifactuXmlBuilder {
         );
     }
 
-    private String buildDesglose(EmitInvoiceCommand command) {
+    private String buildRectificativaSection(VerifactuSubmission submission) {
+        if (!submission.isRectificativa()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("""
+                  <sfLR:TipoRectificativa>%s</sfLR:TipoRectificativa>
+                """.formatted(VerifactuXmlHelper.escapeXml(submission.correctionType())));
+
+        builder.append("""
+                  <sfLR:FacturasRectificadas>
+                    <sfLR:IDFacturaRectificada>
+                      <sfLR:IDEmisorFactura>%s</sfLR:IDEmisorFactura>
+                      <sfLR:NumSerieFactura>%s</sfLR:NumSerieFactura>
+                      <sfLR:FechaExpedicionFactura>%s</sfLR:FechaExpedicionFactura>
+                    </sfLR:IDFacturaRectificada>
+                  </sfLR:FacturasRectificadas>
+                """.formatted(
+                VerifactuXmlHelper.escapeXml(submission.nif()),
+                VerifactuXmlHelper.escapeXml(submission.relatedNumSerieFactura()),
+                VerifactuXmlHelper.escapeXml(submission.relatedFechaExpedicion())
+        ));
+
+        if ("S".equalsIgnoreCase(submission.correctionType())
+                && submission.correctedBaseAmount() != null
+                && submission.correctedTaxAmount() != null) {
+            builder.append("""
+                  <sfLR:ImporteRectificacion>
+                    <sfLR:BaseRectificada>%s</sfLR:BaseRectificada>
+                    <sfLR:CuotaRectificada>%s</sfLR:CuotaRectificada>
+                  </sfLR:ImporteRectificacion>
+                """.formatted(
+                    formatAmount(submission.correctedBaseAmount()),
+                    formatAmount(submission.correctedTaxAmount())
+            ));
+        }
+
+        return builder.toString();
+    }
+
+    private String buildDesgloseFromAmounts(BigDecimal importeNeto, BigDecimal importeIva) {
         return """
                     <sfLR:DetalleDesglose>
                       <sfLR:Impuesto>01</sfLR:Impuesto>
@@ -177,9 +221,13 @@ public class VerifactuXmlBuilder {
                       <sfLR:CuotaRepercutida>%s</sfLR:CuotaRepercutida>
                     </sfLR:DetalleDesglose>
                 """.formatted(
-                formatAmount(command.getImporteNeto()),
-                formatAmount(command.getImporteIva())
+                formatAmount(importeNeto),
+                formatAmount(importeIva)
         );
+    }
+
+    private String buildDesglose(EmitInvoiceCommand command) {
+        return buildDesgloseFromAmounts(command.getImporteNeto(), command.getImporteIva());
     }
 
     private boolean hasCustomer(EmitInvoiceCommand command) {
@@ -209,10 +257,102 @@ public class VerifactuXmlBuilder {
             String softwareName,
             String softwareId,
             String softwareVersion,
-            String installationNumber
+            String installationNumber,
+            String correctionType,
+            String relatedNumSerieFactura,
+            String relatedFechaExpedicion,
+            BigDecimal correctedBaseAmount,
+            BigDecimal correctedTaxAmount
     ) {
         public static String nowIsoSpain() {
             return OffsetDateTime.now(ZoneOffset.ofHours(1)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        }
+
+        public boolean isRectificativa() {
+            return tipoFactura != null && tipoFactura.startsWith("R");
+        }
+
+        public static VerifactuSubmission forAlta(
+                EmitInvoiceCommand command,
+                String nif,
+                String emitterRazonSocial,
+                String numSerieFactura,
+                LocalDate fechaExpedicion,
+                String tipoFactura,
+                String descripcionOperacion,
+                String huella,
+                String fechaHoraHusoGenRegistro,
+                String softwareVendorName,
+                String softwareName,
+                String softwareId,
+                String softwareVersion,
+                String installationNumber
+        ) {
+            return new VerifactuSubmission(
+                    command,
+                    nif,
+                    emitterRazonSocial,
+                    numSerieFactura,
+                    fechaExpedicion,
+                    tipoFactura,
+                    descripcionOperacion,
+                    huella,
+                    fechaHoraHusoGenRegistro,
+                    softwareVendorName,
+                    softwareName,
+                    softwareId,
+                    softwareVersion,
+                    installationNumber,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+        }
+
+        public static VerifactuSubmission forRectificativa(
+                EmitInvoiceCommand command,
+                String nif,
+                String emitterRazonSocial,
+                String numSerieFactura,
+                LocalDate fechaExpedicion,
+                String tipoFactura,
+                String correctionType,
+                String relatedNumSerieFactura,
+                String relatedFechaExpedicion,
+                BigDecimal correctedBaseAmount,
+                BigDecimal correctedTaxAmount,
+                String descripcionOperacion,
+                String huella,
+                String fechaHoraHusoGenRegistro,
+                String softwareVendorName,
+                String softwareName,
+                String softwareId,
+                String softwareVersion,
+                String installationNumber
+        ) {
+            return new VerifactuSubmission(
+                    command,
+                    nif,
+                    emitterRazonSocial,
+                    numSerieFactura,
+                    fechaExpedicion,
+                    tipoFactura,
+                    descripcionOperacion,
+                    huella,
+                    fechaHoraHusoGenRegistro,
+                    softwareVendorName,
+                    softwareName,
+                    softwareId,
+                    softwareVersion,
+                    installationNumber,
+                    correctionType,
+                    relatedNumSerieFactura,
+                    relatedFechaExpedicion,
+                    correctedBaseAmount,
+                    correctedTaxAmount
+            );
         }
     }
 

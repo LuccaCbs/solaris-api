@@ -37,6 +37,8 @@ class VerifactuNativeFiscalProviderTest {
                 properties,
                 aeatClient,
                 hashChainService,
+                new VerifactuFiscalRepresentationBuilder(),
+                new VerifactuSoftwareDeclarationService(),
                 new ObjectMapper()
         );
     }
@@ -73,6 +75,42 @@ class VerifactuNativeFiscalProviderTest {
         assertThat(result.isAuthorized()).isTrue();
         assertThat(result.getCae()).isEqualTo("ABCDEF1234567890");
         assertThat(result.getPdfUrl()).contains("ValidarQR");
+        assertThat(result.getRawJson()).contains("fiscalRepresentationHtml");
+    }
+
+    @Test
+    void emitCreditNote_submitsRectificativaWhenKindAndAmountsPresent() {
+        EmitCreditNoteCommand command = EmitCreditNoteCommand.builder()
+                .emitterCuit("B12345678")
+                .emitterRazonSocial("Solaris ES SL")
+                .puntoVenta(1)
+                .numeroComprobante(11L)
+                .relatedNumSerieFactura("1-10")
+                .relatedFechaExpedicion("07-07-2026")
+                .rectificationKind(VerifactuRectificationKind.R1)
+                .correctionType(VerifactuCorrectionType.I)
+                .importeNeto(new BigDecimal("-100.00"))
+                .importeIva(new BigDecimal("-21.00"))
+                .importeTotal(new BigDecimal("-121.00"))
+                .build();
+
+        when(hashChainService.resolvePreviousHash(7L)).thenReturn("PREV");
+        when(aeatClient.submitRectificativa(any(), any(), eq("B12345678"), eq("Solaris ES SL"), eq("PREV")))
+                .thenReturn(VerifactuInvoiceAuthorization.authorized(
+                        TipoComprobante.FACTURA_B,
+                        1,
+                        11L,
+                        "RECTHASH",
+                        "https://prewww1.aeat.es/wlpl/TIKE-CONT/ValidarQR?nif=B12345678",
+                        "<request/>",
+                        "<response/>"
+                ));
+
+        EmitInvoiceResult result = provider.emitCreditNote(command, VerifactuCredentials.empty(), 7L);
+
+        assertThat(result.isAuthorized()).isTrue();
+        assertThat(result.getCae()).isEqualTo("RECTHASH");
+        assertThat(result.getRawJson()).contains("rectificativa");
     }
 
     @Test

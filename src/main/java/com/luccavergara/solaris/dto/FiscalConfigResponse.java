@@ -21,4 +21,5 @@ public class FiscalConfigResponse {
     private boolean hasFiscalApiKey;
     private CountryCode countryCode;
     private FiscalJurisdiction fiscalJurisdiction;
+    private VerifactuSoftwareDeclarationResponse verifactuSoftwareDeclaration;
 }

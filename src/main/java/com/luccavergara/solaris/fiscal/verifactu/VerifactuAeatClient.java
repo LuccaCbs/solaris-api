@@ -18,6 +18,7 @@ public class VerifactuAeatClient {
     private static final DateTimeFormatter EXPEDITION_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final VerifactuProperties verifactuProperties;
+    private final VerifactuEndpointResolver endpointResolver;
     private final VerifactuHashCalculator hashCalculator;
     private final VerifactuXmlBuilder xmlBuilder;
     private final VerifactuRecordSigner recordSigner;
@@ -50,7 +51,7 @@ public class VerifactuAeatClient {
         );
 
         String huella = hashCalculator.calculateAltaFingerprint(hashInput);
-        VerifactuXmlBuilder.VerifactuSubmission submission = new VerifactuXmlBuilder.VerifactuSubmission(
+        VerifactuXmlBuilder.VerifactuSubmission submission = VerifactuXmlBuilder.VerifactuSubmission.forAlta(
                 command,
                 nif,
                 emitterRazonSocial,
@@ -77,6 +78,7 @@ public class VerifactuAeatClient {
 
         String qrUrl = qrUrlBuilder.buildValidationUrl(
                 verifactuProperties,
+                endpointResolver,
                 nif,
                 numSerieFactura,
                 fechaExpedicion,
@@ -86,6 +88,101 @@ public class VerifactuAeatClient {
 
         return dispatch(
                 command.getTipoComprobante(),
+                command.getPuntoVenta(),
+                command.getNumeroComprobante(),
+                huella,
+                qrUrl,
+                envelope,
+                credentials
+        );
+    }
+
+    public VerifactuInvoiceAuthorization submitRectificativa(
+            EmitCreditNoteCommand command,
+            VerifactuCredentials credentials,
+            String nif,
+            String emitterRazonSocial,
+            String previousHash
+    ) {
+        String numSerieFactura = buildCreditNoteNumSerieFactura(command, credentials);
+        String relatedNumSerieFactura = resolveRelatedNumSerieFactura(command, credentials);
+        String relatedFechaExpedicion = resolveRelatedFechaExpedicion(command);
+        LocalDate fechaExpedicion = LocalDate.now();
+        String tipoFactura = command.getRectificationKind().code();
+        VerifactuCorrectionType correctionType = command.getCorrectionType() != null
+                ? command.getCorrectionType()
+                : VerifactuCorrectionType.I;
+        String fechaHora = VerifactuXmlBuilder.VerifactuSubmission.nowIsoSpain();
+
+        EmitInvoiceCommand invoiceCommand = EmitInvoiceCommand.builder()
+                .emitterCuit(command.getEmitterCuit())
+                .emitterRazonSocial(command.getEmitterRazonSocial())
+                .puntoVenta(command.getPuntoVenta())
+                .tipoComprobante(command.getTipoComprobante())
+                .numeroComprobante(command.getNumeroComprobante())
+                .importeNeto(command.getImporteNeto())
+                .importeIva(command.getImporteIva())
+                .importeTotal(command.getImporteTotal())
+                .build();
+
+        VerifactuHashCalculator.VerifactuAltaRecord hashInput = new VerifactuHashCalculator.VerifactuAltaRecord(
+                nif,
+                numSerieFactura,
+                formatDate(fechaExpedicion),
+                tipoFactura,
+                formatAmount(command.getImporteIva()),
+                formatAmount(command.getImporteTotal()),
+                previousHash == null ? "" : previousHash,
+                fechaHora
+        );
+
+        String huella = hashCalculator.calculateAltaFingerprint(hashInput);
+        VerifactuXmlBuilder.VerifactuSubmission submission = VerifactuXmlBuilder.VerifactuSubmission.forRectificativa(
+                invoiceCommand,
+                nif,
+                emitterRazonSocial,
+                numSerieFactura,
+                fechaExpedicion,
+                tipoFactura,
+                correctionType.code(),
+                relatedNumSerieFactura,
+                relatedFechaExpedicion,
+                command.getCorrectedBaseAmount(),
+                command.getCorrectedTaxAmount(),
+                "Rectificativa registrada en Solaris",
+                huella,
+                fechaHora,
+                emitterRazonSocial,
+                resolveSoftwareName(credentials),
+                resolveSoftwareId(credentials),
+                resolveSoftwareVersion(credentials),
+                resolveInstallationNumber(credentials)
+        );
+
+        String registroFragment = xmlBuilder.buildRegistroAltaFragment(submission);
+        String envelope = buildSignedEnvelope(
+                credentials,
+                nif,
+                emitterRazonSocial,
+                registroFragment
+        );
+
+        String qrUrl = qrUrlBuilder.buildValidationUrl(
+                verifactuProperties,
+                endpointResolver,
+                nif,
+                numSerieFactura,
+                fechaExpedicion,
+                command.getImporteTotal(),
+                huella
+        );
+
+        TipoComprobante tipo = command.getTipoComprobante() != null
+                ? command.getTipoComprobante()
+                : TipoComprobante.FACTURA_B;
+
+        return dispatch(
+                tipo,
                 command.getPuntoVenta(),
                 command.getNumeroComprobante(),
                 huella,
@@ -177,7 +274,7 @@ public class VerifactuAeatClient {
             String envelope,
             VerifactuCredentials credentials
     ) {
-        if (!verifactuProperties.getSandbox().isEnabled()) {
+        if (!endpointResolver.isSubmissionEnabled(verifactuProperties)) {
             return VerifactuInvoiceAuthorization.rejected(
                     tipoComprobante,
                     puntoVenta,
@@ -185,14 +282,14 @@ public class VerifactuAeatClient {
                     huella,
                     qrUrl,
                     envelope,
-                    "Verifactu sandbox is disabled (set verifactu.sandbox.enabled=true)"
+                    "Verifactu is disabled (enable verifactu.sandbox.enabled or verifactu.production.enabled)"
             );
         }
 
         try {
             VerifactuCertificateLoader.VerifactuKeyMaterial keyMaterial = certificateLoader.load(credentials);
             String response = httpTransport.post(
-                    verifactuProperties.getSandbox().getServiceUrl(),
+                    endpointResolver.resolveServiceUrl(verifactuProperties),
                     SOAP_ACTION,
                     envelope,
                     keyMaterial
@@ -272,6 +369,14 @@ public class VerifactuAeatClient {
                 requestXml,
                 responseXml
         );
+    }
+
+    private String buildCreditNoteNumSerieFactura(EmitCreditNoteCommand command, VerifactuCredentials credentials) {
+        int serie = credentials.serie() != null
+                ? credentials.serie()
+                : command.getPuntoVenta() != null ? command.getPuntoVenta() : verifactuProperties.getSerie();
+        long numero = command.getNumeroComprobante() != null ? command.getNumeroComprobante() : 1L;
+        return serie + "-" + numero;
     }
 
     private String resolveRelatedNumSerieFactura(EmitCreditNoteCommand command, VerifactuCredentials credentials) {

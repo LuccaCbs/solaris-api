@@ -16,6 +16,25 @@ public class VerifactuQrUrlBuilder {
 
     public String buildValidationUrl(
             VerifactuProperties properties,
+            VerifactuEndpointResolver endpointResolver,
+            String nif,
+            String numSerieFactura,
+            LocalDate fechaExpedicion,
+            BigDecimal importeTotal,
+            String huella
+    ) {
+        return buildValidationUrl(
+                endpointResolver.resolveQrValidationBaseUrl(properties),
+                nif,
+                numSerieFactura,
+                fechaExpedicion,
+                importeTotal,
+                huella
+        );
+    }
+
+    public String buildValidationUrl(
+            String qrValidationBaseUrl,
             String nif,
             String numSerieFactura,
             LocalDate fechaExpedicion,
@@ -23,7 +42,7 @@ public class VerifactuQrUrlBuilder {
             String huella
     ) {
         return UriComponentsBuilder
-                .fromUriString(properties.getSandbox().getQrValidationBaseUrl())
+                .fromUriString(qrValidationBaseUrl)
                 .queryParam("nif", encode(nif))
                 .queryParam("numserie", encode(numSerieFactura))
                 .queryParam("fecha", encode(QR_DATE.format(fechaExpedicion)))

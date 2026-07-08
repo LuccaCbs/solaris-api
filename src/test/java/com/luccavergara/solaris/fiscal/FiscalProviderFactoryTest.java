@@ -31,7 +31,7 @@ class FiscalProviderFactoryTest {
                 new MockFiscalProvider(new ObjectMapper()),
                 new TusFacturasFiscalProvider(new ObjectMapper()),
                 new AfipNativeFiscalProvider(afipProperties, null, new ObjectMapper()),
-                new VerifactuNativeFiscalProvider(verifactuProperties, null, null, new ObjectMapper()),
+                new VerifactuNativeFiscalProvider(verifactuProperties, null, null, null, null, new ObjectMapper()),
                 afipProperties,
                 verifactuProperties,
                 new ObjectMapper()
@@ -72,7 +72,7 @@ class FiscalProviderFactoryTest {
                 new MockFiscalProvider(new ObjectMapper()),
                 new TusFacturasFiscalProvider(new ObjectMapper()),
                 new AfipNativeFiscalProvider(propertiesWithoutCert, null, new ObjectMapper()),
-                new VerifactuNativeFiscalProvider(verifactuPropertiesWithoutCert, null, null, new ObjectMapper()),
+                new VerifactuNativeFiscalProvider(verifactuPropertiesWithoutCert, null, null, null, null, new ObjectMapper()),
                 propertiesWithoutCert,
                 verifactuPropertiesWithoutCert,
                 new ObjectMapper()

@@ -15,6 +15,7 @@ public class VerifactuProperties {
     private Integer serie = 1;
     private Cert cert = new Cert();
     private Software software = new Software();
+    private ResponsibleDeclaration responsibleDeclaration = new ResponsibleDeclaration();
     private Signature signature = new Signature();
     private boolean integrationTestEnabled = false;
 
@@ -37,9 +38,11 @@ public class VerifactuProperties {
     @Getter
     @Setter
     public static class Production {
+        private boolean enabled = false;
         private String wsdlUrl = VerifactuWsdlEndpoints.WSDL_PRODUCTION;
         private String serviceUrl = VerifactuWsdlEndpoints.PRODUCTION_VERIFACTU;
         private String serviceSelloUrl = VerifactuWsdlEndpoints.PRODUCTION_VERIFACTU_SELLO;
+        private String qrValidationBaseUrl = VerifactuWsdlEndpoints.PRODUCTION_QR_VALIDATION;
     }
 
     @Getter
@@ -57,5 +60,16 @@ public class VerifactuProperties {
         private String id = "SO";
         private String version = "1.0";
         private String installationNumber = "1";
+        private String vendorNif = "";
+        private String vendorName = "Solaris";
+    }
+
+    @Getter
+    @Setter
+    public static class ResponsibleDeclaration {
+        /** Optional URL to the signed responsible declaration document. */
+        private String url = "";
+        /** Optional override for the declaration text shown to users. */
+        private String text = "";
     }
 }

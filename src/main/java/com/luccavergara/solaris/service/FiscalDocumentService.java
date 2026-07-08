@@ -6,12 +6,15 @@ import com.luccavergara.solaris.dto.EmitInvoiceRequest;
 import com.luccavergara.solaris.dto.FiscalConfigRequest;
 import com.luccavergara.solaris.dto.FiscalConfigResponse;
 import com.luccavergara.solaris.dto.FiscalDocumentResponse;
+import com.luccavergara.solaris.dto.VerifactuSoftwareDeclarationResponse;
 import com.luccavergara.solaris.entity.*;
 import com.luccavergara.solaris.exception.DuplicateResourceException;
 import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.fiscal.*;
 import com.luccavergara.solaris.fiscal.afip.AfipCredentials;
 import com.luccavergara.solaris.fiscal.afip.AfipProperties;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuProperties;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuSoftwareDeclarationService;
 import com.luccavergara.solaris.repository.FiscalDocumentRepository;
 import com.luccavergara.solaris.repository.OrganizationRepository;
 import com.luccavergara.solaris.repository.StoreRepository;
@@ -46,6 +49,8 @@ public class FiscalDocumentService {
     private final ObjectMapper objectMapper;
     private final EntitlementService entitlementService;
     private final AfipProperties afipProperties;
+    private final VerifactuProperties verifactuProperties;
+    private final VerifactuSoftwareDeclarationService verifactuSoftwareDeclarationService;
 
     @Transactional
     public FiscalDocumentResponse emitInvoiceForSale(Long saleId, EmitInvoiceRequest request) {
@@ -487,7 +492,7 @@ public class FiscalDocumentService {
     }
 
     private FiscalConfigResponse mapToFiscalConfigResponse(Organization organization) {
-        return FiscalConfigResponse.builder()
+        FiscalConfigResponse.FiscalConfigResponseBuilder builder = FiscalConfigResponse.builder()
                 .cuit(isSpainJurisdiction(organization)
                         ? SpainTaxIdValidator.normalize(organization.getCuit())
                         : TaxIdNormalizer.normalizeCuit(organization.getCuit()))
@@ -497,7 +502,27 @@ public class FiscalDocumentService {
                 .fiscalProvider(organization.getFiscalProvider())
                 .hasFiscalApiKey(StringUtils.hasText(organization.getFiscalApiKey()))
                 .countryCode(organization.getCountryCode())
-                .fiscalJurisdiction(organization.getFiscalJurisdiction())
+                .fiscalJurisdiction(organization.getFiscalJurisdiction());
+
+        if (organization.getFiscalProvider() == FiscalProviderType.VERIFACTU_NATIVE) {
+            builder.verifactuSoftwareDeclaration(mapSoftwareDeclaration(verifactuSoftwareDeclarationService.build(verifactuProperties)));
+        }
+
+        return builder.build();
+    }
+
+    private VerifactuSoftwareDeclarationResponse mapSoftwareDeclaration(
+            VerifactuSoftwareDeclarationService.VerifactuSoftwareDeclaration declaration
+    ) {
+        return VerifactuSoftwareDeclarationResponse.builder()
+                .softwareName(declaration.softwareName())
+                .softwareId(declaration.softwareId())
+                .softwareVersion(declaration.softwareVersion())
+                .installationNumber(declaration.installationNumber())
+                .vendorName(declaration.vendorName())
+                .vendorNif(declaration.vendorNif())
+                .declarationText(declaration.declarationText())
+                .declarationUrl(declaration.declarationUrl())
                 .build();
     }
 

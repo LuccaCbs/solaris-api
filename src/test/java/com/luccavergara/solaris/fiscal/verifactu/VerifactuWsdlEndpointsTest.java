@@ -19,6 +19,12 @@ class VerifactuWsdlEndpointsTest {
     }
 
     @Test
+    void productionQrEndpoint_matchesOfficialPattern() {
+        assertThat(VerifactuWsdlEndpoints.PRODUCTION_QR_VALIDATION)
+                .isEqualTo("https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR");
+    }
+
+    @Test
     void soapAction_isEmptyPerWsdl() {
         assertThat(VerifactuWsdlEndpoints.SOAP_ACTION).isEmpty();
     }
