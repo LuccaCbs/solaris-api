@@ -13,6 +13,7 @@ import com.luccavergara.solaris.exception.ResourceNotFoundException;
 import com.luccavergara.solaris.fiscal.*;
 import com.luccavergara.solaris.fiscal.afip.AfipCredentials;
 import com.luccavergara.solaris.fiscal.afip.AfipProperties;
+import com.luccavergara.solaris.fiscal.verifactu.VerifactuCredentials;
 import com.luccavergara.solaris.fiscal.verifactu.VerifactuFiscalPreviewService;
 import com.luccavergara.solaris.fiscal.verifactu.VerifactuProperties;
 import com.luccavergara.solaris.fiscal.verifactu.VerifactuSoftwareDeclarationService;
@@ -260,11 +261,45 @@ public class FiscalDocumentService {
         }
 
         if (StringUtils.hasText(request.getFiscalApiKey())) {
+            validateFiscalApiKeyForProvider(
+                    organization,
+                    request.getFiscalProvider() != null ? request.getFiscalProvider() : organization.getFiscalProvider(),
+                    request.getFiscalApiKey().trim()
+            );
             organization.setFiscalApiKey(request.getFiscalApiKey().trim());
         }
 
         Organization saved = organizationRepository.save(organization);
         return mapToFiscalConfigResponse(saved);
+    }
+
+    private void validateFiscalApiKeyForProvider(
+            Organization organization,
+            FiscalProviderType provider,
+            String fiscalApiKey
+    ) {
+        if (provider != FiscalProviderType.VERIFACTU_NATIVE) {
+            return;
+        }
+
+        VerifactuCredentials credentials = VerifactuCredentials.parse(fiscalApiKey, objectMapper)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Verifactu credentials must be JSON with provider, certBase64 or certPath, and certPassword"
+                ));
+
+        if (!credentials.hasCertificateReference()) {
+            throw new IllegalArgumentException("Verifactu credentials require certBase64 or certPath");
+        }
+
+        if (!StringUtils.hasText(credentials.certPassword())) {
+            throw new IllegalArgumentException("Verifactu credentials require certPassword");
+        }
+
+        String nif = SpainTaxIdValidator.normalize(organization.getCuit());
+        if (StringUtils.hasText(credentials.nif()) && StringUtils.hasText(nif)
+                && !nif.equalsIgnoreCase(SpainTaxIdValidator.normalize(credentials.nif()))) {
+            throw new IllegalArgumentException("Verifactu credentials NIF must match organization NIF/CIF");
+        }
     }
 
     private void validateFiscalConfig(Organization organization) {
@@ -308,6 +343,33 @@ public class FiscalDocumentService {
 
         if (!StringUtils.hasText(organization.getRazonSocial())) {
             throw new IllegalStateException("Business name is required for invoicing");
+        }
+
+        if (organization.getFiscalProvider() == FiscalProviderType.VERIFACTU_NATIVE) {
+            validateVerifactuNativeConfig(organization);
+        }
+    }
+
+    private void validateVerifactuNativeConfig(Organization organization) {
+        boolean hasOrgCert = VerifactuCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                .map(VerifactuCredentials::hasCertificateReference)
+                .orElse(false);
+        boolean hasPlatformCert = StringUtils.hasText(verifactuProperties.getCert().getPath())
+                || StringUtils.hasText(verifactuProperties.getCert().getBase64());
+
+        if (!hasOrgCert && !hasPlatformCert) {
+            throw new IllegalStateException(
+                    "Verifactu native provider requires a certificate (org fiscalApiKey certBase64/certPath)"
+            );
+        }
+
+        VerifactuCredentials credentials = VerifactuCredentials.parse(organization.getFiscalApiKey(), objectMapper)
+                .orElse(VerifactuCredentials.empty());
+        if (hasOrgCert && !StringUtils.hasText(credentials.certPassword())
+                && !StringUtils.hasText(verifactuProperties.getCert().getPassword())) {
+            throw new IllegalStateException(
+                    "Verifactu native provider requires the certificate password (org fiscalApiKey certPassword)"
+            );
         }
     }
 
